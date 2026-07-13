@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 3 — Person A (App)
-// [FEATURE] Full Form 7 permit application form with document upload and resubmit flow
+// DAY 6 — Person A (App)
+// [REFACTOR] Removed royalty receipt upload from the application form — not needed upfront
 // ═══════════════════════════════════════════════════════════
 
 // Permit application form - all fields, document uploads and resubmit flow

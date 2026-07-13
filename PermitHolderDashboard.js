@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 2 — Person A (App)
-// [FEATURE] Permit Holder dashboard shell routing between Home/Applications/Permits/Drivers/Profile
+// DAY 6 — Person A (App)
+// [REFACTOR] Restructured payment flow to happen after GSMB approval, not upfront
 // ═══════════════════════════════════════════════════════════
 
 // Permit Holder dashboard shell - routes between all Holder screens
