@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 3 — Person A (App)
-// [FEATURE] Permit Holder Home, Applications, Permits and Drivers tab screens
+// DAY 6 — Person A (App)
+// [REFACTOR] Removed royalty payment fields from Holder screens — only transport licence fee applies
 // ═══════════════════════════════════════════════════════════
 
 // Permit Holder screens - home, applications list, permits list and driver management
