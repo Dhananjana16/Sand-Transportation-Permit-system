@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 7 — Person B (Police)
-// [POLISH] Matching splash/login visual polish for the Police portal
+// DAY 6 — Person B (Police)
+// [FEATURE] Police QR scan verification against permit database, checkpoint logging, location capture
 // ═══════════════════════════════════════════════════════════
 
 // Police dashboard and login - main dashboard shell and login/register form
