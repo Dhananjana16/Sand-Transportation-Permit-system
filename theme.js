@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 1 — Person A (App)
-// [SETUP] Shared design tokens (colors, fonts, input/button base styles) and UI text strings
+// DAY 7 — Person C (GSMB)
+// [REFACTOR] Removed Tamil/Sinhala translation strings — UI switched to English only
 // ═══════════════════════════════════════════════════════════
 
 // ─── Shared design tokens, colors, and translation strings ───────

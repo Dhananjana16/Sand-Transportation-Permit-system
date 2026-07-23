@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 4 — Person C (GSMB)
-// [FEATURE] GSMB application review flow: overview, list, detail, approve/reject with checklist
+// DAY 7 — Person C (GSMB)
+// [REFACTOR] Removed royalty fields from GSMB application review to match Holder-side change
 // ═══════════════════════════════════════════════════════════
 
 // GSMB application management - overview dashboard, list and review screen
