@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 7 — Person B (Police)
-// [POLISH] Matching splash/login visual polish for the Police portal
+// DAY 8 — Person B (Police)
+// [FIX] Updated imports after the App.js split
 // ═══════════════════════════════════════════════════════════
 
 // Police dashboard and login - main dashboard shell and login/register form
