@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 3 — Person B (Police)
-// [FEATURE] Police portal entry: splash screen, sidebar, mobile nav
+// DAY 8 — Person B (Police)
+// [FIX] Updated imports after the App.js split
 // ═══════════════════════════════════════════════════════════
 
 // Police portal entry - splash screen, role entry gate, sidebar and mobile nav
