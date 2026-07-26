@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 8 — Person C (GSMB)
-// [FIX] Updated imports after the App.js split; fixed circular dependency between GSMBDashboard and GSMBLogin
+// DAY 9 — Person C (GSMB)
+// [FIX] Switched splash/login screens from minHeight to position:fixed for consistency with the Police portal fix
 // ═══════════════════════════════════════════════════════════
 
 // GSMB portal splash screen and login page
@@ -18,9 +18,9 @@ import { WebSettingsScreen, PrintStyles } from "./settingsAndDocs";
 export function GSMBSplash({onContinue}){
   const isDesktop=useIsDesktop();
   return(
-    <div style={{minHeight:"calc(100vh - 56px)",width:"100%",background:`linear-gradient(160deg,${MD} 0%,${M} 60%,${ML} 100%)`,
+    <div style={{position:"fixed",top:56,left:0,right:0,bottom:0,width:"100%",background:`linear-gradient(160deg,${MD} 0%,${M} 60%,${ML} 100%)`,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:"'Segoe UI',system-ui,sans-serif",position:"relative",overflow:"hidden",padding:"48px 24px"}}>
+      fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"auto",padding:"48px 24px"}}>
       <div style={{position:"absolute",top:-100,right:-100,width:340,height:340,
         borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
       <div style={{display:"flex",alignItems:"center",gap:18,marginBottom:24,position:"relative"}}>
@@ -83,9 +83,9 @@ export function GSMBLogin({onSuccess}){
   };
 
   return(
-    <div style={{width:"100%",minHeight:"calc(100vh - 56px)",
+    <div style={{position:"fixed",top:56,left:0,right:0,bottom:0,width:"100%",
       display:"flex",flexDirection:isDesktop?"row":"column",
-      fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"hidden"}}>
+      fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"auto"}}>
       <div style={{width:isDesktop?500:"100%",position:"relative",overflow:"hidden",display:"flex",
         flexDirection:"column",justifyContent:"space-between",flexShrink:0}}>
         <div style={{position:"absolute",inset:0,background:`linear-gradient(170deg,${MD} 0%,${M} 60%,${ML} 100%)`}}/>
