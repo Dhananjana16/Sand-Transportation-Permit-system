@@ -1,27 +1,22 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 8 — Person B (Police)
-// [FIX] Updated imports after the App.js split
+// DAY 9 — Person B (Police)
+// [FIX] Switched splash screen from minHeight to position:fixed for guaranteed full-viewport fill
 // ═══════════════════════════════════════════════════════════
 
 // Police portal entry - splash screen, role entry gate, sidebar and mobile nav
 
-import { useState, useEffect, useRef } from "react";
-import jsQR from "jsqr";
-import slEmblem from "./image/sl-emblem.png";
-import policeLogo from "./image/police-logo.png";
+import { useState } from "react";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn } from "./theme";
-import { SLCrest, PoliceLogo, IconField, webInput, webBtn } from "./uiComponents";
-import { WebSettingsScreen } from "./settingsAndDocs";
+import { SLCrest, PoliceLogo, IconField } from "./uiComponents";
 import { useIsDesktop } from "./tripUtils";
-import { GSMBPermitDetail } from "./GSMBPermitDetail";
-import { PoliceDashboard, PoliceLogin } from "./PoliceDashboardLogin";
+import { PoliceLogin } from "./PoliceDashboardLogin";
 
 export function PoliceSplash({onContinue}){
   const isDesktop=useIsDesktop();
   return(
-    <div style={{minHeight:"calc(100vh - 56px)",width:"100%",background:`linear-gradient(160deg,${NV} 0%,${NM} 60%,#1E3A6A 100%)`,
+    <div style={{position:"fixed",top:56,left:0,right:0,bottom:0,width:"100%",background:`linear-gradient(160deg,${NV} 0%,${NM} 60%,#1E3A6A 100%)`,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:"'Segoe UI',system-ui,sans-serif",position:"relative",overflow:"hidden",padding:"48px 24px"}}>
+      fontFamily:"'Segoe UI',system-ui,sans-serif",overflow:"auto",padding:"48px 24px"}}>
       <div style={{position:"absolute",top:-100,right:-100,width:340,height:340,
         borderRadius:"50%",background:"rgba(201,168,76,0.08)"}}/>
       <div style={{display:"flex",alignItems:"center",gap:18,marginBottom:24,position:"relative"}}>
