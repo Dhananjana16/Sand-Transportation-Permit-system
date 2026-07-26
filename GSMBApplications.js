@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 7 — Person C (GSMB)
-// [REFACTOR] Removed royalty fields from GSMB application review to match Holder-side change
+// DAY 8 — Person C (GSMB)
+// [FIX] Updated imports after the App.js split
 // ═══════════════════════════════════════════════════════════
 
 // GSMB application management - overview dashboard, list and review screen
