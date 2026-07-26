@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 7 — Person C (GSMB)
-// [REFACTOR] Removed GSMB late-ride tracking section — only Permit Holder tracks lateness
+// DAY 8 — Person C (GSMB)
+// [FIX] Restructured GSMBEntry to own all session/navigation state, fixing a sign-out bug
 // ═══════════════════════════════════════════════════════════
 
 // GSMB dashboard shell - ties together all GSMB screens and handles routing

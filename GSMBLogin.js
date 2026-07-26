@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 2 — Person C (GSMB)
-// [FEATURE] GSMB portal splash screen and officer login/register form
+// DAY 8 — Person C (GSMB)
+// [FIX] Updated imports after the App.js split; fixed circular dependency between GSMBDashboard and GSMBLogin
 // ═══════════════════════════════════════════════════════════
 
 // GSMB portal splash screen and login page

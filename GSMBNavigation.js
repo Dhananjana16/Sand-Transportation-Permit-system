@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// DAY 2 — Person C (GSMB)
-// [FEATURE] GSMB website navbar, sidebar and mobile hamburger menu
+// DAY 8 — Person C (GSMB)
+// [FIX] Updated imports after the App.js split
 // ═══════════════════════════════════════════════════════════
 
 // GSMB website navigation - navbar, sidebar and mobile hamburger menu
