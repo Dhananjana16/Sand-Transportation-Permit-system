@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 8 — Person A (App)
-// [REFACTOR] Split the ~4700 line monolithic App.js into 19 separate files by feature area
-// ═══════════════════════════════════════════════════════════
-
 // Top-level app switcher - choose between SandPass app, GSMB portal, Police portal
 
 import { useState } from "react";
