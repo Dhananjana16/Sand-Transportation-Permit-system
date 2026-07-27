@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 8 — Person C (GSMB)
-// [FIX] Updated imports after the App.js split
-// ═══════════════════════════════════════════════════════════
-
 // GSMB application management - overview dashboard, list and review screen
 
 import { useState, useEffect } from "react";

@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 8 — Person C (GSMB)
-// [FIX] Updated imports after the App.js split
-// ═══════════════════════════════════════════════════════════
-
 // GSMB issued permits list - search, filter and view issued Form 7 permits
 
 import { useState, useEffect } from "react";

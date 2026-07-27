@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 9 — Person C (GSMB)
-// [FIX] Switched splash/login screens from minHeight to position:fixed for consistency with the Police portal fix
-// ═══════════════════════════════════════════════════════════
-
 // GSMB portal splash screen and login page
 
 import { useState } from "react";
