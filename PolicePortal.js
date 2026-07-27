@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 9 — Person B (Police)
-// [FIX] Switched splash screen from minHeight to position:fixed for guaranteed full-viewport fill
-// ═══════════════════════════════════════════════════════════
-
 // Police portal entry - splash screen, role entry gate, sidebar and mobile nav
 
 import { useState } from "react";

@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 9 — Person B (Police)
-// [FIX] Fixed sign-in branding panel not stretching full height; switched to position:fixed for guaranteed viewport fill; centered form in a fixed-width card matching GSMB
-// ═══════════════════════════════════════════════════════════
-
 // Police login and registration form
 
 import { useState } from "react";
