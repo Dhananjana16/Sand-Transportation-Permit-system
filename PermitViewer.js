@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 4 — Person A (App)
-// [FEATURE] Digital Form 7 permit document viewer, shared by Permit Holder and Driver
-// ═══════════════════════════════════════════════════════════
-
 import { useState } from "react";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseBtn } from "./theme";
 import { BackHeader, ScrollBody, QRCode, GSMBLogo, PhoneFrame } from "./uiComponents";
