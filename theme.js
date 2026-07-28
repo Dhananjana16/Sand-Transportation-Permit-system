@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 7 — Person C (GSMB)
-// [REFACTOR] Removed Tamil/Sinhala translation strings — UI switched to English only
-// ═══════════════════════════════════════════════════════════
-
 // ─── Shared design tokens, colors, and translation strings ───────
 
 export const M = "#6B1A2A", MD = "#4E1120", ML = "#7D2035";

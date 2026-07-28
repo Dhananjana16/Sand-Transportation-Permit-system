@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 1 — Person A (App)
-// [SETUP] Shared UI components used across all portals: logos, Field, StatusBadge, PhoneFrame, QR code, buttons
-// ═══════════════════════════════════════════════════════════
-
 // Logos, form fields, buttons, layout wrappers and navigation bars
 
 import { useState, useEffect, useRef } from "react";

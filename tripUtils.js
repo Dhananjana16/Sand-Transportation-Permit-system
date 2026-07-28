@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 1 — Person A (App)
-// [SETUP] Shared hooks: useIsDesktop, useTicker, trip status/delay calculation, live trip card
-// ═══════════════════════════════════════════════════════════
-
 // Trip tracking utilities - hooks, status calculation and live trip card
 
 import { useState, useEffect, useRef } from "react";
