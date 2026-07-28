@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 2 — Person A (App)
-// [FEATURE] Permit Holder dashboard shell routing between Home/Applications/Permits/Drivers/Profile
-// ═══════════════════════════════════════════════════════════
-
 // Permit Holder dashboard shell - routes between all Holder screens
 
 import { useState, useEffect, useRef } from "react";
