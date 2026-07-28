@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 4 — Person A (App)
-// [FEATURE] Settings screens, print styles, FAQ sections shared across the app
-// ═══════════════════════════════════════════════════════════
-
 // Settings screens, document print styles, FAQ sections and activity feed
 
 import { useState, useEffect, useRef } from "react";
