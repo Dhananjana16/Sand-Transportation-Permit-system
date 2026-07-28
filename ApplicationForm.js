@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 3 — Person A (App)
-// [FEATURE] Full Form 7 permit application form with document upload and resubmit flow
-// ═══════════════════════════════════════════════════════════
-
 // Permit application form - all fields, document uploads and resubmit flow
 
 import { useState, useEffect, useRef } from "react";

@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 3 — Person A (App)
-// [FEATURE] Permit Holder Home, Applications, Permits and Drivers tab screens
-// ═══════════════════════════════════════════════════════════
-
 // Permit Holder screens - home, applications list, permits list and driver management
 
 import { useState, useEffect, useRef } from "react";

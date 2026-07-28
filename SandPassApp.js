@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 2 — Person A (App)
-// [FEATURE] SandPass app entry: role chooser, role splash, login/register shell
-// ═══════════════════════════════════════════════════════════
-
 // SandPass mobile app entry - role chooser, splash screens and login shell
 
 import { useState } from "react";
