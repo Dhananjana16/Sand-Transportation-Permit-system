@@ -3,6 +3,7 @@
 import { useState } from "react";
 import slEmblem from "./image/sl-emblem.png";
 import gsmbLogo from "./image/gsmb-logo.png";
+import { supabaseGSMB as supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
 import { SLCrest, GSMBLogo, Field, WebStatusBadge,
   webInput, webBtn } from "./uiComponents";
@@ -49,30 +50,59 @@ export function GSMBSplash({onContinue}){
 
 export function GSMBLogin({onSuccess}){
   const [view,setView]=useState("login");
-  const SESSION_KEY="sandpass_gsmb_session";
-  const SESSION_HOURS=24;
   const isDesktop=useIsDesktop();
 
-  const getSavedSession=()=>{
-    try{
-      const saved=localStorage.getItem(SESSION_KEY);
-      if(!saved) return null;
-      const {expiry}=JSON.parse(saved);
-      if(new Date().getTime()>expiry){localStorage.removeItem(SESSION_KEY);return null;}
-      return true;
-    }catch(e){return null;}
-  };
-
-  const [officerId,setOfficerId]=useState("");
+  // Login fields — email is used as the Officer's sign-in identity
+  const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [remember,setRemember]=useState(true);
-  const handleLogin=()=>{
-    if(!officerId.trim()||!password.trim()) return;
-    if(remember){
-      try{
-        const expiry=new Date().getTime()+(SESSION_HOURS*60*60*1000);
-        localStorage.setItem(SESSION_KEY,JSON.stringify({expiry}));
-      }catch(e){}
+  const [error,setError]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  // Register-only fields (kept separate from login fields — previously these
+  // accidentally shared the same state variable, which was a bug)
+  const [fullName,setFullName]=useState("");
+  const [officerId,setOfficerId]=useState("");
+  const [confirmPassword,setConfirmPassword]=useState("");
+
+  const handleLogin=async()=>{
+    setError("");
+    if(!email.trim()||!password.trim()){setError("Please enter both email and password.");return;}
+    setLoading(true);
+    const {data,error:authError}=await supabase.auth.signInWithPassword({
+      email:email.trim(),password,
+    });
+    setLoading(false);
+    if(authError){setError(authError.message);return;}
+    // Confirm this account is actually a GSMB officer, not a holder/driver/police account
+    const {data:profile,error:profileError}=await supabase.from("profiles").select("role").eq("id",data.user.id).single();
+    if(profileError){setError(`Profile check failed: ${profileError.message}`);return;}
+    if(!profile||profile.role!=="gsmb"){
+      setError("This account is not registered as a GSMB officer.");
+      await supabase.auth.signOut();
+      return;
+    }
+    if(onSuccess) onSuccess();
+  };
+
+  const handleRegister=async()=>{
+    setError("");
+    if(!fullName.trim()||!officerId.trim()||!email.trim()||!password.trim()){
+      setError("Please fill in all fields.");return;
+    }
+    if(password!==confirmPassword){setError("Passwords do not match.");return;}
+    if(password.length<6){setError("Password must be at least 6 characters.");return;}
+    setLoading(true);
+    const {data,error:authError}=await supabase.auth.signUp({
+      email:email.trim(),password,
+      options:{data:{role:"gsmb",full_name:fullName.trim(),officer_id:officerId.trim()}},
+    });
+    setLoading(false);
+    if(authError){setError(authError.message);return;}
+    if(!data.session){
+      setError("Account created! Please check your email to confirm, then sign in.");
+      setView("login");
+      return;
     }
     if(onSuccess) onSuccess();
   };
@@ -139,7 +169,7 @@ export function GSMBLogin({onSuccess}){
               <>
                 <h2 style={{fontSize:isDesktop?28:20,fontWeight:900,color:MD,margin:"0 0 6px"}}>Officer Sign In</h2>
                 <p style={{fontSize:14,color:GR,margin:"0 0 24px"}}>Regional Office · Permit Management</p>
-                <Field label="Officer ID" placeholder="Enter your officer ID" value={officerId} onChange={e=>setOfficerId(e.target.value)}/>
+                <Field label="Email" type="email" placeholder="Enter your officer email" value={email} onChange={e=>setEmail(e.target.value)}/>
                 <Field label="Password" type="password" placeholder="Enter your password" value={password} onChange={e=>setPassword(e.target.value)}/>
                 <div style={{display:"flex",alignItems:"center",marginTop:-8,marginBottom:22}}>
                   <label style={{display:"flex",alignItems:"center",gap:7,fontSize:14,color:TS,cursor:"pointer"}}>
@@ -147,8 +177,9 @@ export function GSMBLogin({onSuccess}){
                       style={{accentColor:M,width:16,height:16}}/> Keep me signed in
                   </label>
                 </div>
-                <button onClick={handleLogin} style={{...baseBtn,background:M,color:W,marginBottom:22,
-                  padding:"16px",fontSize:16}}>Sign In to Dashboard →</button>
+                {error&&<div style={{color:"#C0392B",fontSize:13,fontWeight:600,marginBottom:16}}>{error}</div>}
+                <button onClick={handleLogin} disabled={loading} style={{...baseBtn,background:M,color:W,marginBottom:22,
+                  padding:"16px",fontSize:16,opacity:loading?0.7:1}}>{loading?"Signing In…":"Sign In to Dashboard →"}</button>
                 <div style={{padding:"14px 18px",background:GP,border:`1px solid ${G}55`,borderRadius:10,
                   fontSize:13,color:TS,lineHeight:1.75}}>
                   🔒 Restricted system. Sessions expire after 24 hours and at midnight daily.
@@ -158,12 +189,14 @@ export function GSMBLogin({onSuccess}){
               <>
                 <h2 style={{fontSize:isDesktop?28:20,fontWeight:900,color:MD,margin:"0 0 6px"}}>Register</h2>
                 <p style={{fontSize:14,color:GR,margin:"0 0 24px"}}>Create a new GSMB Officer account</p>
-                <Field label="Full Name" placeholder="Your full name" value={officerId} onChange={e=>setOfficerId(e.target.value)}/>
+                <Field label="Full Name" placeholder="Your full name" value={fullName} onChange={e=>setFullName(e.target.value)}/>
                 <Field label="Officer ID" placeholder="e.g. GSMB-0123" value={officerId} onChange={e=>setOfficerId(e.target.value)}/>
+                <Field label="Email" type="email" placeholder="Enter your email" value={email} onChange={e=>setEmail(e.target.value)}/>
                 <Field label="Password" type="password" placeholder="Create a password" value={password} onChange={e=>setPassword(e.target.value)}/>
-                <Field label="Confirm Password" type="password" placeholder="Re-enter password" value={password} onChange={e=>setPassword(e.target.value)}/>
-                <button onClick={handleLogin} style={{...baseBtn,background:M,color:W,marginBottom:22,
-                  padding:"16px",fontSize:16}}>Create Account →</button>
+                <Field label="Confirm Password" type="password" placeholder="Re-enter password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/>
+                {error&&<div style={{color:"#C0392B",fontSize:13,fontWeight:600,marginBottom:16}}>{error}</div>}
+                <button onClick={handleRegister} disabled={loading} style={{...baseBtn,background:M,color:W,marginBottom:22,
+                  padding:"16px",fontSize:16,opacity:loading?0.7:1}}>{loading?"Creating Account…":"Create Account →"}</button>
               </>
             )}
           </div>
