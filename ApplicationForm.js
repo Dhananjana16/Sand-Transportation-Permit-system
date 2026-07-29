@@ -1,6 +1,7 @@
 // Permit application form - all fields, document uploads and resubmit flow
 
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
 import { Field, SelectField, StatusBadge, FormSection, BackHeader, ScrollBody } from "./uiComponents";
 import { MobileSettingsScreen } from "./settingsAndDocs";
@@ -17,9 +18,27 @@ export function ApplicationForm({onBack,onSubmit,initialData,rejectionInfo}){
     startPlace:"",via1:"",via2:"",via3:"",via4:"",destination:"",destinationAddress:"",
     royaltyReceiptNo:"",royaltyAmount:"",licenceFeeReceipt:"",
     docsLicence:false,docsRoyalty:false,docsPayslip:false,docsNIC:false,
+    docsLicenceUrl:"",docsNicUrl:"",
     ...initialData,
   });
   const u=(k,v)=>setF(p=>({...p,[k]:v}));
+  const [uploading,setUploading]=useState({});
+
+  // Uploads a picked file into the permit-docs bucket and stores its public URL
+  const uploadDoc=async(file,folder,flagKey,urlKey)=>{
+    if(!file) return;
+    setUploading(prev=>({...prev,[flagKey]:true}));
+    const path=`${folder}/${Date.now()}_${file.name}`;
+    const {error}=await supabase.storage.from("permit-docs").upload(path,file);
+    if(error){
+      alert("Upload failed: "+error.message);
+      setUploading(prev=>({...prev,[flagKey]:false}));
+      return;
+    }
+    const {data}=supabase.storage.from("permit-docs").getPublicUrl(path);
+    setF(p=>({...p,[flagKey]:true,[urlKey]:data.publicUrl}));
+    setUploading(prev=>({...prev,[flagKey]:false}));
+  };
 
   return(
     <>
@@ -77,25 +96,14 @@ export function ApplicationForm({onBack,onSubmit,initialData,rejectionInfo}){
           <Field label="Name of Land / Store" placeholder="e.g. Galketiya Sand Store" value={f.landName} onChange={e=>u("landName",e.target.value)}/>
         </FormSection>
 
-        <FormSection title="5. Purpose & Destination">
-          <Field label="Purpose of Transport" placeholder="e.g. Construction, Retail sale" value={f.purpose} onChange={e=>u("purpose",e.target.value)}/>
-          <Field label="Destination (Buyer / Store / Site)" placeholder="Enter destination name" value={f.destination} onChange={e=>u("destination",e.target.value)}/>
-          <Field label="Destination Address" placeholder="Enter full destination address" value={f.destinationAddress} onChange={e=>u("destinationAddress",e.target.value)}/>
-        </FormSection>
-
-        <FormSection title="6. Transport Details">
+        <FormSection title="5. Transport Details">
           <SelectField label="Vehicle Type" value={f.vehicleType} onChange={e=>u("vehicleType",e.target.value)}
             options={["Lorry","Tipper","Tractor","Other"]}/>
           <Field label="Vehicle Number" placeholder="e.g. NB-1234" value={f.vehicleNo} onChange={e=>u("vehicleNo",e.target.value)}/>
           <Field label="Starting Place of Transport" placeholder="Enter starting location" value={f.startPlace} onChange={e=>u("startPlace",e.target.value)}/>
-          <div style={{fontSize:12,fontWeight:700,color:TS,marginBottom:8}}>Via Towns (up to 4)</div>
-          <Field label="Via Town 1" placeholder="e.g. Bandarawela" value={f.via1} onChange={e=>u("via1",e.target.value)}/>
-          <Field label="Via Town 2" placeholder="e.g. Ella" value={f.via2} onChange={e=>u("via2",e.target.value)}/>
-          <Field label="Via Town 3 (optional)" placeholder="" value={f.via3} onChange={e=>u("via3",e.target.value)}/>
-          <Field label="Via Town 4 (optional)" placeholder="" value={f.via4} onChange={e=>u("via4",e.target.value)}/>
         </FormSection>
 
-        <FormSection title="7. Requested Transport Period">
+        <FormSection title="6. Requested Transport Period">
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <Field label="From Date" type="date" value={f.transportFrom} onChange={e=>u("transportFrom",e.target.value)}/>
             <Field label="To Date" type="date" value={f.transportTo} onChange={e=>u("transportTo",e.target.value)}/>
@@ -103,10 +111,10 @@ export function ApplicationForm({onBack,onSubmit,initialData,rejectionInfo}){
           <div style={{fontSize:11,color:GR,marginTop:-8}}>Maximum validity: 1 month · Maximum 25 trips</div>
         </FormSection>
 
-        <FormSection title="8. Upload Documents">
+        <FormSection title="7. Upload Documents">
           {[
-            {key:"docsLicence",label:"Mining / Trading Licence Copy",required:true},
-            {key:"docsNIC",label:"NIC Copy of Applicant",required:true},
+            {key:"docsLicence",urlKey:"docsLicenceUrl",folder:"licences",label:"Mining / Trading Licence Copy",required:true},
+            {key:"docsNIC",urlKey:"docsNicUrl",folder:"nic",label:"NIC Copy of Applicant",required:true},
           ].map(d=>(
             <div key={d.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
               padding:"12px 14px",border:`1.5px dashed ${GB}`,borderRadius:10,marginBottom:10,
@@ -116,14 +124,16 @@ export function ApplicationForm({onBack,onSubmit,initialData,rejectionInfo}){
                   {d.label}{d.required&&<span style={{color:"#C0392B"}}> *</span>}
                 </div>
                 <div style={{fontSize:11,color:f[d.key]?"#1E8A4C":"#9CA3AF"}}>
-                  {f[d.key]?"✓ Uploaded":"PDF or image, max 5MB"}
+                  {uploading[d.key]?"Uploading…":f[d.key]?"✓ Uploaded":"PDF or image, max 5MB"}
                 </div>
               </div>
-              <button onClick={()=>u(d.key,!f[d.key])} style={{padding:"8px 14px",borderRadius:8,
+              <label style={{padding:"8px 14px",borderRadius:8,
                 border:`1.5px solid ${M}`,background:f[d.key]?M:W,color:f[d.key]?W:M,
                 fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                {f[d.key]?"Replace":"Upload"}
-              </button>
+                {uploading[d.key]?"…":f[d.key]?"Replace":"Upload"}
+                <input type="file" accept="application/pdf,image/*" style={{display:"none"}}
+                  onChange={e=>uploadDoc(e.target.files[0],d.folder,d.key,d.urlKey)}/>
+              </label>
             </div>
           ))}
         </FormSection>
