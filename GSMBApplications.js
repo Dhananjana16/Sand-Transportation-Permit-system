@@ -165,7 +165,8 @@ export function GSMBOverview({applications,onGoTo,onOpen,officerName="Officer"})
 export function GSMBApplicationList({applications,statusFilter,onOpen}){
   const [search,setSearch]=useState("");
   const filtered=applications
-    .filter(a=>statusFilter==="all"||a.status===statusFilter)
+    .filter(a=>statusFilter==="all"||a.status===statusFilter||
+      (statusFilter==="Payment Submitted"&&a.status==="Awaiting Payment"))
     .filter(a=>!search||a.id.toLowerCase().includes(search.toLowerCase())||
       a.applicantName.toLowerCase().includes(search.toLowerCase())||
       a.district.toLowerCase().includes(search.toLowerCase())||
@@ -382,7 +383,17 @@ export function GSMBApplicationDetail({app,onBack,onApprove,onReject}){
               {(app.status==="Payment Submitted"||app.status==="Approved")&&(
                 <>
                   <Row label="Licence Fee Receipt" value={app.licenceFeeReceipt}/>
-                  <Row label="Payment Slip" value={app.paymentSlipFile}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0"}}>
+                    <span style={{fontSize:13,color:"#5A3A42"}}>Payment Slip</span>
+                    {app.paymentSlipUrl?(
+                      <button onClick={()=>window.open(app.paymentSlipUrl,"_blank")}
+                        style={webBtn("#E5F5EA","#1E8A4C",{fontSize:11,padding:"4px 10px"})}>
+                        View
+                      </button>
+                    ):(
+                      <span style={{fontSize:12,color:"#C0392B",fontWeight:700}}>Not uploaded</span>
+                    )}
+                  </div>
                   {app.status==="Payment Submitted"&&(
                     <div style={{marginTop:12,fontSize:12,color:"#1E5FA8",fontWeight:600}}>
                       📨 Submitted by applicant — review and confirm above.
@@ -400,9 +411,9 @@ export function GSMBApplicationDetail({app,onBack,onApprove,onReject}){
               6. Uploaded Documents
             </div>
             {[
-              ["Mining / Trading Licence",app.docs.licence],
-              ["NIC Copy",app.docs.nic],
-            ].map(([label,ok])=>(
+              ["Mining / Trading Licence",app.docs.licence,app.docsLicenceUrl],
+              ["NIC Copy",app.docs.nic,app.docsNicUrl],
+            ].map(([label,ok,url])=>(
               <div key={label} style={{display:"flex",justifyContent:"space-between",
                 alignItems:"center",padding:"10px 0",borderBottom:"1px solid #F8F5F0"}}>
                 <span style={{fontSize:13,color:"#5A3A42"}}>{label}</span>
@@ -410,8 +421,9 @@ export function GSMBApplicationDetail({app,onBack,onApprove,onReject}){
                   <span style={{fontSize:12,fontWeight:700,color:ok?"#1E8A4C":"#C0392B"}}>
                     {ok?"✓ Uploaded":"✕ Missing"}
                   </span>
-                  {ok&&(
-                    <button style={webBtn("#E5F5EA","#1E8A4C",{fontSize:11,padding:"4px 10px"})}>
+                  {ok&&url&&(
+                    <button onClick={()=>window.open(url,"_blank")}
+                      style={webBtn("#E5F5EA","#1E8A4C",{fontSize:11,padding:"4px 10px"})}>
                       View
                     </button>
                   )}
@@ -510,7 +522,17 @@ export function GSMBApplicationDetail({app,onBack,onApprove,onReject}){
           <Row label="Valid From" value={app.validFrom}/>
           <Row label="Valid To" value={app.validTo}/>
           <Row label="Licence Fee Paid" value="Rs. 250.00"/>
-          <Row label="Payment Slip" value={app.paymentSlipFile}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0"}}>
+            <span style={{fontSize:13,color:"#5A3A42"}}>Payment Slip</span>
+            {app.paymentSlipUrl?(
+              <button onClick={()=>window.open(app.paymentSlipUrl,"_blank")}
+                style={webBtn("#E5F5EA","#1E8A4C",{fontSize:11,padding:"4px 10px"})}>
+                View
+              </button>
+            ):(
+              <span style={{fontSize:12,color:"#C0392B",fontWeight:700}}>Not uploaded</span>
+            )}
+          </div>
           <div style={{background:"#fff",border:"1px solid #86EFAC",borderRadius:10,
             padding:"12px 16px",fontSize:12,color:"#5A3A42",marginTop:14,marginBottom:16}}>
             ℹ️ This will generate permit number <b>PMT-2026-{String(Math.floor(Math.random()*900)+100)}</b> and send it to the permit holder's SandPass app. Max 25 trips allowed.
