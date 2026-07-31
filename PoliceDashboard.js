@@ -1,12 +1,8 @@
-// ═══════════════════════════════════════════════════════════
-// DAY 9 — Person B (Police)
-// [REFACTOR] New file — split out of PoliceDashboardLogin.js to separate the dashboard shell from the login form
-// ═══════════════════════════════════════════════════════════
-
 // Police dashboard shell - scan QR, my log, profile screens
 
 import { useState, useEffect, useRef } from "react";
 import jsQR from "jsqr";
+import { supabasePolice as supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn } from "./theme";
 import { PoliceLogo, webInput, webBtn } from "./uiComponents";
 import { WebSettingsScreen } from "./settingsAndDocs";
@@ -24,12 +20,39 @@ export function PoliceDashboard({officer,onLogout}){
   const [cameraActive,setCameraActive]=useState(false);
   const [cameraError,setCameraError]=useState("");
   const [profile,setProfile]=useState({
-    name:officer.name,email:officer.email||"",phone:officer.phone||"",language:"English",
+    name:officer.name,email:officer.email||"",phone:officer.phone||"",avatarUrl:"",language:"English",
   });
-  const [checkpoints,setCheckpoints]=useState([
-    {time:"08:45 AM",date:"17 Jun 2026",permitId:"PMT-2026-0139",vehicle:"GL-9012",result:"Valid",officer:"Officer 123"},
-    {time:"11:20 AM",date:"16 Jun 2026",permitId:"PMT-2026-0143",vehicle:"NB-1234",result:"Valid",officer:"Officer 123"},
-  ]);
+  const loadOfficerProfile=async()=>{
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user) return;
+    const {data,error}=await supabase.from("profiles").select("*").eq("id",user.id).single();
+    if(!error&&data) setProfile(prev=>({
+      ...prev,
+      name:data.full_name||prev.name, email:user.email||prev.email,
+      phone:data.phone||prev.phone, avatarUrl:data.avatar_url||"",
+    }));
+  };
+  useEffect(()=>{ loadOfficerProfile(); },[]);
+  const [checkpoints,setCheckpoints]=useState([]);
+  const [currentOfficerId,setCurrentOfficerId]=useState(null);
+  const [lastCheckpointId,setLastCheckpointId]=useState(null);
+
+  const loadCheckpoints=async()=>{
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user) return;
+    setCurrentOfficerId(user.id);
+    const {data,error}=await supabase
+      .from("checkpoints").select("*").eq("officer_id",user.id)
+      .order("checked_at",{ascending:false});
+    if(!error&&data) setCheckpoints(data.map(c=>({
+      id:c.id,
+      time:new Date(c.checked_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),
+      date:new Date(c.checked_at).toLocaleDateString([],{day:"2-digit",month:"short",year:"numeric"}),
+      permitId:c.permit_id, vehicle:c.vehicle_no, result:c.result, officer:profile.name,
+      locationText:c.location_name||"",
+    })));
+  };
+  useEffect(()=>{ loadCheckpoints(); },[]);
   const [locationStatus,setLocationStatus]=useState("idle"); // idle|locating|done|denied|attached
   const [capturedLocation,setCapturedLocation]=useState(null);
   const [manualLocation,setManualLocation]=useState("");
@@ -39,51 +62,6 @@ export function PoliceDashboard({officer,onLogout}){
   const canvasRef=useRef(null);
   const streamRef=useRef(null);
   const rafRef=useRef(null);
-
-  // ── Full Form 7 permit records, matching what the Holder/Driver/GSMB
-  // already see — kept consistent across portals (same IDs, same data).
-  const PERMIT_DB={
-    "PMT-2026-0143":{
-      id:"PMT-2026-0143",licenceNo:"TL/2026/04521",vehicleNo:"NB-1234",
-      holderName:"Kamal Perera",holderAddress:"No. 45, Main Street, Badulla",
-      mineral:"Sand",qty:"8",unit:"Cubes",
-      miningLicenceNo:"ML/2025/00123",district:"Badulla",
-      dsDivision:"Badulla DS Division",gnDivision:"45 - Bandarawela",
-      landName:"Galketiya Sand Store",
-      startPlace:"Galketiya Sand Store",destination:"Colombo Construction Site",
-      via1:"Bandarawela",via2:"Ella",via3:"",via4:"",
-      validFrom:"10 Jun 2026",validTo:"09 Jul 2026",
-      licenceFeeReceipt:"LF-2026-0456",royaltyReceiptNo:"RR-998877",royaltyAmount:"5000",
-      officerName:"Mr. S. Jayawardena",issuedDate:"10 Jun 2026",
-      tripsTotal:25,
-      trips:[
-        {date:"13 Jun 2026",qty:"8",startTime:"08:15 AM",endTime:"11:40 AM",
-          driverName:"Sunil Fernando",policeOfficer:"Sgt. K. Perera",policeStation:"Badulla",status:"Completed"},
-      ],
-    },
-    "PMT-2026-0139":{
-      id:"PMT-2026-0139",licenceNo:"TL/2026/03211",
-      holderName:"Ruwan Bandara",holderAddress:"No. 78, Temple Road, Galle",
-      vehicleNo:"GL-9012",mineral:"Sand",qty:"6",unit:"Cubes",
-      miningLicenceNo:"ML/2024/00789",district:"Galle",dsDivision:"Galle DS Division",
-      gnDivision:"12 - Hikkaduwa",landName:"Hikkaduwa River Sand",
-      startPlace:"Hikkaduwa River Sand",destination:"Matara Housing Project",
-      via1:"Hikkaduwa",via2:"Galle",via3:"",via4:"",
-      validFrom:"08 Jun 2026",validTo:"07 Jul 2026",
-      licenceFeeReceipt:"LF-2026-0321",royaltyReceiptNo:"RR-334455",royaltyAmount:"3500",
-      officerName:"W.A.C.A. Madhushika",issuedDate:"08 Jun 2026",
-      tripsTotal:25,
-      trips:[
-        {date:"10 Jun 2026",qty:"6",startTime:"07:30 AM",endTime:"10:15 AM",
-          driverName:"Ruwan Bandara",driverId:"DRV-1003",
-          policeOfficer:"Sgt. M. Silva",policeStation:"Galle",status:"Completed"},
-      ],
-      checkpointNotes:[
-        {officer:"Sgt. M. Silva",station:"Galle",date:"10 Jun 2026",time:"08:45 AM",
-         locationText:"6.03281, 80.21010 (±12m) — Galle Road checkpoint"},
-      ],
-    },
-  };
 
   const [locationErrorMsg,setLocationErrorMsg]=useState("");
 
@@ -114,11 +92,24 @@ export function PoliceDashboard({officer,onLogout}){
     );
   };
 
-  const confirmLocation=()=>{
+  const confirmLocation=async()=>{
     const locationText=(capturedLocation&&!editLocation)
       ?`${capturedLocation.lat}, ${capturedLocation.lng} (±${capturedLocation.accuracy}m)`
       :manualLocation.trim();
     if(!locationText) return;
+    if(!lastCheckpointId){
+      alert("No checkpoint record found to attach this location to — please scan the permit again.");
+      return;
+    }
+    const {error}=await supabase.from("checkpoints").update({
+      location_name:locationText,
+      location_lat:capturedLocation&&!editLocation?parseFloat(capturedLocation.lat):null,
+      location_lng:capturedLocation&&!editLocation?parseFloat(capturedLocation.lng):null,
+    }).eq("id",lastCheckpointId);
+    if(error){
+      alert("Failed to save location: "+error.message);
+      return;
+    }
     setCheckpoints(prev=>prev.map((c,i)=>i===0?{...c,locationText}:c));
     setLocationStatus("attached");
   };
@@ -131,24 +122,53 @@ export function PoliceDashboard({officer,onLogout}){
 
   useEffect(()=>()=>stopCamera(),[]);
 
-  const verifyPermit=(code)=>{
+  const verifyPermit=async(code)=>{
     stopCamera();
+    setLastCheckpointId(null);
     const clean=code.trim().toUpperCase();
     const parts=clean.split("|");
     const permitId=parts.length>1?parts[1]:clean;
-    const permit=PERMIT_DB[permitId];
+    const {data:permitRow}=await supabase.from("permits").select("*").eq("id",permitId).single();
     const now=new Date();
     const time=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
     const date=now.toLocaleDateString([],{day:"2-digit",month:"short",year:"numeric"});
+    let activeTripRow=null;
+    if(permitRow){
+      const {data:t}=await supabase.from("trips")
+        .select("*").eq("permit_id",permitRow.id).eq("status","in_progress")
+        .order("started_at",{ascending:false}).limit(1).maybeSingle();
+      activeTripRow=t;
+    }
+    const permit=permitRow?{
+      id:permitRow.id, licenceNo:permitRow.licence_no, vehicleNo:permitRow.vehicle_no,
+      holderName:permitRow.holder_name, mineral:permitRow.mineral, qty:permitRow.qty, unit:permitRow.unit,
+      district:permitRow.district, startPlace:permitRow.start_place, destination:permitRow.destination,
+      via1:permitRow.via1,via2:permitRow.via2,via3:permitRow.via3,via4:permitRow.via4,
+      validFrom:permitRow.valid_from, validTo:permitRow.valid_to,
+      officerName:permitRow.officer_name, issuedDate:permitRow.issued_date,
+      tripsTotal:permitRow.trips_total, trips:[],
+      tripInProgress:activeTripRow?{
+        tripRowId:activeTripRow.id, driverName:activeTripRow.driver_name,
+        startTime:new Date(activeTripRow.started_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),
+        destination:activeTripRow.destination,
+      }:null,
+    }:null;
     const result=permit
       ?{...permit,scannedAt:time,scannedDate:date,statusCheck:"Valid"}
       :{statusCheck:"Invalid",permitId:clean,scannedAt:time,scannedDate:date};
     setScanResult(result);
     setManualCode("");
     setCapturedLocation(null); setManualLocation(""); setEditLocation(false);
-    if(permit){
-      setCheckpoints(prev=>[{time,date,permitId:permit.id,vehicle:permit.vehicleNo,
-        result:"Valid",officer:profile.name},...prev]);
+    if(permit&&currentOfficerId){
+      const {data:cpRow,error:cpError}=await supabase.from("checkpoints").insert({
+        officer_id:currentOfficerId, permit_id:permit.id, vehicle_no:permit.vehicleNo, result:"Valid",
+        trip_id:activeTripRow?.id||null,
+      }).select().single();
+      if(!cpError&&cpRow){
+        setLastCheckpointId(cpRow.id);
+        setCheckpoints(prev=>[{id:cpRow.id,time,date,permitId:permit.id,vehicle:permit.vehicleNo,
+          result:"Valid",officer:profile.name,locationText:""},...prev]);
+      }
       // Police are always on their device location — capture it automatically
       captureLocation();
     } else {
@@ -448,26 +468,8 @@ export function PoliceDashboard({officer,onLogout}){
                           )}
                         </div>
 
-                        {/* Live vehicle map — place reserved for GPS tracking */}
-                        <div style={{background:"#fff",borderRadius:16,padding:isDesktop?"22px":"18px",
-                          boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
-                          <div style={{fontSize:14,fontWeight:800,color:NV,marginBottom:10}}>
-                            🛰 Vehicle Map
-                          </div>
-                          <div style={{background:"#EFF1EA",border:"1.5px dashed #DDD5C8",borderRadius:14,
-                            padding:"30px 16px",textAlign:"center"}}>
-                            <div style={{fontSize:24,marginBottom:6}}>🛰</div>
-                            <div style={{fontSize:12,fontWeight:700,color:"#5A3A42",marginBottom:2}}>
-                              Live map view
-                            </div>
-                            <div style={{fontSize:11,color:"#9CA3AF"}}>
-                              Will show this vehicle's live location and route once GPS tracking is connected
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Full Form 7 permit, front + trip log on the back */}
-                        <GSMBPermitDetail permit={scanResult} allowSave={false}/>
+                        {/* Full Form 7 permit, front + trip log on the back — includes the live map when a trip is active */}
+                        <GSMBPermitDetail permit={scanResult} allowSave={false} supabaseClient={supabase} showLiveMap/>
                       </>
                     )}
 
@@ -555,7 +557,7 @@ export function PoliceDashboard({officer,onLogout}){
                   <button onClick={()=>setShowSettings(false)}
                     style={{...webBtn("#F3F0EB","#5A3A42"),marginBottom:16}}>← Back to Profile</button>
                   <WebSettingsScreen profile={profile} setProfile={setProfile}
-                    onLogout={onLogout} accent={NV}/>
+                    onLogout={onLogout} accent={NV} supabaseClient={supabase}/>
                 </div>
               ):(
                 <div style={{background:"#fff",borderRadius:16,padding:isDesktop?"22px":"18px",
