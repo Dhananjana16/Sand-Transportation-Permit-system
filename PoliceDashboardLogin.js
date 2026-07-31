@@ -1,78 +1,78 @@
 // Police login and registration form
 
 import { useState } from "react";
+import { supabasePolice as supabase } from "./supabaseClient";
 import { G, GR, NV, NM, W, TS, baseBtn } from "./theme";
 import { SLCrest, PoliceLogo, IconField } from "./uiComponents";
 import { useIsDesktop } from "./tripUtils";
-import { PoliceDashboard } from "./PoliceDashboard";
 
-export function PoliceLogin({onLogout}){
-  const SESSION_KEY="sandpass_police_session";
-  const SESSION_DAYS=7;
+export function PoliceLogin({onLogout,onSuccess}){
   const isDesktop=useIsDesktop();
-
-  const getSavedSession=()=>{
-    try{
-      const saved=localStorage.getItem(SESSION_KEY);
-      if(!saved) return null;
-      const {officer,expiry}=JSON.parse(saved);
-      if(new Date().getTime()>expiry){localStorage.removeItem(SESSION_KEY);return null;}
-      return officer;
-    }catch(e){return null;}
-  };
-
-  // Always start logged out — auto-login only on first mount (not after sign-out remount)
-  const [loggedIn,setLoggedIn]=useState(false);
-  const [officer,setOfficer]=useState(null);
   const [view,setView]=useState("login"); // login | register
-  const [station,setStation]=useState("");
-  const [badgeId,setBadgeId]=useState("");
+  const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [remember,setRemember]=useState(true);
   const [error,setError]=useState("");
+  const [loading,setLoading]=useState(false);
 
-  // Register fields
+  // Register-only fields
   const [regName,setRegName]=useState("");
   const [regEmail,setRegEmail]=useState("");
   const [regPhone,setRegPhone]=useState("");
   const [regConfirmPw,setRegConfirmPw]=useState("");
+  const [station,setStation]=useState("");
+  const [badgeId,setBadgeId]=useState("");
   const [agreedTerms,setAgreedTerms]=useState(false);
 
-  const persistSession=(officerData)=>{
-    if(remember){
-      try{
-        const expiry=new Date().getTime()+(SESSION_DAYS*24*60*60*1000);
-        localStorage.setItem(SESSION_KEY,JSON.stringify({officer:officerData,expiry}));
-      }catch(e){}
-    }
-    setOfficer(officerData);setLoggedIn(true);
-  };
-
-  const handleLogin=()=>{
-    if(!badgeId.trim()||!password.trim()||!station.trim()){
-      setError("Please fill in all fields.");return;
-    }
+  const handleLogin=async()=>{
+    if(!email.trim()||!password.trim()){setError("Please enter both email and password.");return;}
     setError("");
-    persistSession({name:`Officer ${badgeId}`,badgeId,station:station.trim()});
+    setLoading(true);
+    try{
+      const {data,error:authError}=await supabase.auth.signInWithPassword({
+        email:email.trim(),password,
+      });
+      if(authError){setLoading(false);setError(authError.message);return;}
+      const {data:profile,error:profileError}=await supabase
+        .from("profiles").select("role").eq("id",data.user.id).single();
+      setLoading(false);
+      if(profileError){setError("Profile check failed: "+profileError.message);return;}
+      if(!profile||profile.role!=="police"){
+        setError("This account is not registered as a Police officer.");
+        await supabase.auth.signOut();
+        return;
+      }
+      if(onSuccess) onSuccess();
+    }catch(err){
+      setLoading(false);
+      alert("Unexpected error during sign in: "+(err?.message||String(err)));
+    }
   };
 
-  const handleRegister=()=>{
+  const handleRegister=async()=>{
     if(!agreedTerms){setError("Please agree to the Terms & Conditions.");return;}
     if(!regName.trim()||!badgeId.trim()||!station.trim()||!regEmail.trim()||!password.trim()){
       setError("Please fill in all required fields.");return;
     }
     if(password!==regConfirmPw){setError("Passwords do not match.");return;}
+    if(password.length<6){setError("Password must be at least 6 characters.");return;}
     setError("");
-    persistSession({name:regName.trim(),badgeId,station:station.trim(),email:regEmail,phone:regPhone});
+    setLoading(true);
+    const {data,error:authError}=await supabase.auth.signUp({
+      email:regEmail.trim(),password,
+      options:{data:{role:"police",full_name:regName.trim(),phone:regPhone.trim(),
+        badge_id:badgeId.trim(),station:station.trim()}},
+    });
+    setLoading(false);
+    if(authError){setError(authError.message);return;}
+    if(!data.session){
+      setError("Account created! Please confirm your email, then sign in.");
+      setEmail(regEmail.trim());
+      setView("login");
+      return;
+    }
+    if(onSuccess) onSuccess();
   };
-
-  const handleLogout=()=>{
-    try{localStorage.removeItem(SESSION_KEY);}catch(e){}
-    if(onLogout){ onLogout(); return; }
-    setLoggedIn(false);setOfficer(null);
-  };
-
-  if(loggedIn&&officer) return <PoliceDashboard officer={officer} onLogout={handleLogout}/>;
 
   return(
     <div style={{position:"fixed",top:56,left:0,right:0,bottom:0,width:"100%",
@@ -159,11 +159,9 @@ export function PoliceLogin({onLogout}){
 
             {view==="login"?(
               <>
-                <IconField icon="🏛️" label="Police Station" placeholder="e.g. Badulla Police Station"
-                  value={station} onChange={e=>setStation(e.target.value)}/>
-                <IconField icon="🎫" label="Badge / Service ID" placeholder="Enter your badge number"
-                  value={badgeId} onChange={e=>setBadgeId(e.target.value)}/>
-                <IconField icon="🔒" label="Password" type="password" placeholder="Enter your password"
+                <IconField label="Email" type="email" placeholder="Enter your email"
+                  value={email} onChange={e=>setEmail(e.target.value)}/>
+                <IconField label="Password" type="password" placeholder="Enter your password"
                   value={password} onChange={e=>setPassword(e.target.value)}/>
 
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
@@ -182,26 +180,26 @@ export function PoliceLogin({onLogout}){
                     padding:"9px 14px",background:"#FBEAEA",borderRadius:8}}>{error}</div>
                 )}
 
-                <button onClick={handleLogin}
-                  style={{...baseBtn,background:NV,color:W,marginBottom:16,padding:"16px",fontSize:16}}>
-                  Sign In →
+                <button onClick={handleLogin} disabled={loading}
+                  style={{...baseBtn,background:NV,color:W,marginBottom:16,padding:"16px",fontSize:16,opacity:loading?0.7:1}}>
+                  {loading?"Signing In…":"Sign In →"}
                 </button>
               </>
             ):(
               <>
-                <IconField icon="👤" label="Full Name" placeholder="Name as on warrant card"
+                <IconField label="Full Name" placeholder="Name as on warrant card"
                   value={regName} onChange={e=>setRegName(e.target.value)}/>
-                <IconField icon="🎫" label="Badge / Service ID" placeholder="Enter your badge number"
+                <IconField label="Badge / Service ID" placeholder="Enter your badge number"
                   value={badgeId} onChange={e=>setBadgeId(e.target.value)}/>
-                <IconField icon="🏛️" label="Police Station" placeholder="e.g. Badulla Police Station"
+                <IconField label="Police Station" placeholder="e.g. Badulla Police Station"
                   value={station} onChange={e=>setStation(e.target.value)}/>
-                <IconField icon="📧" label="Email Address" type="email" placeholder="Enter your email"
+                <IconField label="Email Address" type="email" placeholder="Enter your email"
                   value={regEmail} onChange={e=>setRegEmail(e.target.value)}/>
-                <IconField icon="📱" label="Phone Number" placeholder="Enter mobile number"
+                <IconField label="Phone Number" placeholder="Enter mobile number"
                   value={regPhone} onChange={e=>setRegPhone(e.target.value)}/>
-                <IconField icon="🔒" label="Password" type="password" placeholder="Create a strong password"
+                <IconField label="Password" type="password" placeholder="Create a strong password"
                   value={password} onChange={e=>setPassword(e.target.value)}/>
-                <IconField icon="🔒" label="Confirm Password" type="password" placeholder="Re-enter your password"
+                <IconField label="Confirm Password" type="password" placeholder="Re-enter your password"
                   value={regConfirmPw} onChange={e=>setRegConfirmPw(e.target.value)}/>
 
                 <label style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:12,
@@ -217,9 +215,9 @@ export function PoliceLogin({onLogout}){
                     padding:"8px 12px",background:"#FBEAEA",borderRadius:8}}>{error}</div>
                 )}
 
-                <button onClick={handleRegister}
-                  style={{...baseBtn,background:NV,color:W,marginBottom:16}}>
-                  Create Officer Account →
+                <button onClick={handleRegister} disabled={loading}
+                  style={{...baseBtn,background:NV,color:W,marginBottom:16,opacity:loading?0.7:1}}>
+                  {loading?"Creating Account…":"Create Officer Account →"}
                 </button>
               </>
             )}
