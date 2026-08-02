@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseBtn } from "./theme";
 import { BackHeader, ScrollBody, QRCode, GSMBLogo, PhoneFrame } from "./uiComponents";
 import { TripStatusCard } from "./tripUtils";
@@ -8,7 +9,30 @@ import { DocRow, DocSection, PrintStyles } from "./settingsAndDocs";
 
 export function PermitViewer({permit,onBack,viewerRole="holder",showQR=false,onSubmitDelayReason}){
   const [activeTab,setActiveTab]=useState("permit"); // "permit" | "map"
+  const [checkpointNotes,setCheckpointNotes]=useState([]);
   const qrData=`SANDPASS|${permit.id}|${permit.licenceNo}|VEH:${permit.vehicleNo}|TRIPS:${permit.trips.length}/${permit.tripsTotal}`;
+
+  useEffect(()=>{
+    let cancelled=false;
+    const loadCheckpoints=async()=>{
+      const {data,error}=await supabase
+        .from("checkpoints")
+        .select("*, profiles(full_name, station)")
+        .eq("permit_id",permit.id)
+        .order("checked_at",{ascending:false});
+      if(!error&&data&&!cancelled){
+        setCheckpointNotes(data.map(c=>({
+          officer:c.profiles?.full_name||"Unknown Officer",
+          station:c.profiles?.station||"—",
+          date:new Date(c.checked_at).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}),
+          time:new Date(c.checked_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),
+          locationText:c.location_name||"No location recorded",
+        })));
+      }
+    };
+    if(permit?.id) loadCheckpoints();
+    return ()=>{cancelled=true;};
+  },[permit?.id]);
   return(
     <>
       <div className="no-print">
@@ -149,6 +173,22 @@ export function PermitViewer({permit,onBack,viewerRole="holder",showQR=false,onS
                 </div>
               </div>
             </div>
+
+            {checkpointNotes.length>0&&(
+              <div className="no-print" style={{background:"#fff",borderRadius:14,padding:"16px 18px",
+                boxShadow:"0 2px 10px rgba(0,0,0,0.05)",marginTop:16}}>
+                <div style={{fontSize:12,fontWeight:800,color:M,marginBottom:10,textTransform:"uppercase",
+                  letterSpacing:"0.05em"}}>📍 Police Checkpoint History</div>
+                {checkpointNotes.map((c,i)=>(
+                  <div key={i} style={{padding:"9px 0",
+                    borderBottom:i<checkpointNotes.length-1?"1px solid #F3F0EB":"none"}}>
+                    <div style={{fontSize:13,fontWeight:700,color:TX}}>{c.officer} · {c.station}</div>
+                    <div style={{fontSize:11.5,color:GR}}>{c.date}, {c.time}</div>
+                    <div style={{fontSize:11.5,color:"#1E8A4C",marginTop:2}}>📍 {c.locationText}</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Save as Document — at the very bottom of the permit */}
             <button onClick={()=>window.print()} className="no-print" style={{...baseBtn,
