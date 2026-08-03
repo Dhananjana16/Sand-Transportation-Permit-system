@@ -1,6 +1,7 @@
 // Permit Holder screens - home, applications list, permits list and driver management
 
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
 import { Field, SelectField, StatusBadge, FormSection, AppHeader, BottomNav,
   BackHeader, ScrollBody } from "./uiComponents";
@@ -242,9 +243,9 @@ export function HolderApplications({applications,onNewApp,onResubmit,onSubmitPay
                     background:paymentSlipFile?"#F0F9F2":"#FAF8F5",color:paymentSlipFile?"#1E8A4C":TS,
                     fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:10,
                     textAlign:"center",boxSizing:"border-box"}}>
-                    {paymentSlipFile?`✓ ${paymentSlipFile}`:"📎 Upload Payment Slip (photo or PDF)"}
+                    {paymentSlipFile?`✓ ${paymentSlipFile.name}`:"📎 Upload Payment Slip (photo or PDF)"}
                     <input type="file" accept="image/*,.pdf" style={{display:"none"}}
-                      onChange={e=>setPaymentSlipFile(e.target.files[0]?e.target.files[0].name:null)}/>
+                      onChange={e=>setPaymentSlipFile(e.target.files[0]||null)}/>
                   </label>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>{setPayingId(null);setPaymentSlipFile(null);}}
@@ -288,7 +289,7 @@ export function HolderApplications({applications,onNewApp,onResubmit,onSubmitPay
 // ── PERMIT HOLDER: Permits Tab ────────────────────────────────────
 export function HolderPermits({permits,myDrivers,onViewPermit,onGoToDrivers,language="English"}){
   const [sendingId,setSendingId]=useState(null);
-  const [selectedDriver,setSelectedDriver]=useState("");
+  const [selectedDrivers,setSelectedDrivers]=useState([]);
   const [sentMap,setSentMap]=useState({});
   const [search,setSearch]=useState("");
   const [showDateFilter,setShowDateFilter]=useState(false);
@@ -334,7 +335,7 @@ export function HolderPermits({permits,myDrivers,onViewPermit,onGoToDrivers,lang
       {filtered.map(p=>(
         <div key={p.id} style={{background:W,borderRadius:16,padding:"18px 16px",marginBottom:14,
           boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+          <div onClick={()=>onViewPermit(p)} style={{display:"flex",justifyContent:"space-between",marginBottom:10,cursor:"pointer"}}>
             <div>
               <div style={{fontSize:15,fontWeight:800,color:M}}>{p.id}</div>
               <div style={{fontSize:11,color:"#9CA3AF"}}>Licence: {p.licenceNo} · Vehicle: {p.vehicleNo}</div>
@@ -360,69 +361,81 @@ export function HolderPermits({permits,myDrivers,onViewPermit,onGoToDrivers,lang
               🚚 Trip in progress
             </div>
           )}
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            <button onClick={()=>onViewPermit(p)} style={{flex:1,padding:"10px",borderRadius:10,
-              border:`1.5px solid ${M}`,background:W,color:M,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              {t(language,"viewPermit")}
-            </button>
-            {!sentMap[p.id]?(
-              sendingId===p.id?(
-                <div style={{flex:2}}>
-                  {myDrivers.length===0?(
-                    <div style={{fontSize:12,color:GR,padding:"8px",textAlign:"center"}}>
-                      <span style={{color:M,fontWeight:700,cursor:"pointer"}} onClick={onGoToDrivers}>
-                        Add drivers first →
-                      </span>
-                    </div>
-                  ):(
-                    <>
-                      {myDrivers.map(d=>(
-                        <div key={d.id} onClick={()=>setSelectedDriver(d.id)} style={{
-                          display:"flex",alignItems:"center",gap:10,padding:"8px 10px",
-                          borderRadius:10,marginBottom:6,cursor:"pointer",
-                          border:`1.5px solid ${selectedDriver===d.id?M:GB}`,
-                          background:selectedDriver===d.id?GP:W}}>
-                          <div style={{width:30,height:30,borderRadius:"50%",flexShrink:0,
-                            background:selectedDriver===d.id?M:"#F3F0EB",
-                            color:selectedDriver===d.id?W:TS,display:"flex",alignItems:"center",
-                            justifyContent:"center",fontSize:12,fontWeight:800}}>
-                            {d.name.charAt(0)}
-                          </div>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:12,fontWeight:700,color:TX}}>{d.name}</div>
-                            <div style={{fontSize:10.5,color:GR}}>{d.id} · NIC: {d.nic}</div>
-                          </div>
-                          {selectedDriver===d.id&&<span style={{color:M,fontSize:14}}>✓</span>}
-                        </div>
-                      ))}
-                      <div style={{display:"flex",gap:8,marginTop:8}}>
-                        <button onClick={()=>{setSendingId(null);setSelectedDriver("");}} style={{flex:1,
-                          padding:"8px",borderRadius:8,border:`1.5px solid ${GB}`,background:W,
-                          color:GR,fontSize:11,fontWeight:700,cursor:"pointer"}}>Cancel</button>
-                        <button disabled={!selectedDriver} onClick={()=>{
-                          const d=myDrivers.find(x=>x.id===selectedDriver);
-                          setSentMap({...sentMap,[p.id]:d});setSendingId(null);setSelectedDriver("");
-                        }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",
-                          background:selectedDriver?M:"#DDD5C8",color:W,fontSize:11,
-                          fontWeight:700,cursor:selectedDriver?"pointer":"default"}}>Confirm</button>
-                      </div>
-                    </>
-                  )}
+          {sendingId===p.id?(
+            <div style={{marginBottom:10}}>
+              {myDrivers.length===0?(
+                <div style={{fontSize:12,color:GR,padding:"8px",textAlign:"center"}}>
+                  <span style={{color:M,fontWeight:700,cursor:"pointer"}} onClick={onGoToDrivers}>
+                    Add drivers first →
+                  </span>
                 </div>
               ):(
-                <button onClick={()=>setSendingId(p.id)} style={{flex:1,padding:"10px",borderRadius:10,
+                <>
+                  <div style={{fontSize:11,color:GR,marginBottom:8}}>Select one or more drivers who can use this permit:</div>
+                  {myDrivers.map(d=>{
+                    const checked=selectedDrivers.includes(d.id);
+                    return(
+                      <div key={d.id} onClick={()=>setSelectedDrivers(checked?selectedDrivers.filter(x=>x!==d.id):[...selectedDrivers,d.id])}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",
+                        borderRadius:10,marginBottom:6,cursor:"pointer",
+                        border:`1.5px solid ${checked?M:GB}`,
+                        background:checked?GP:W}}>
+                        <div style={{width:20,height:20,borderRadius:6,flexShrink:0,
+                          border:`1.5px solid ${checked?M:GB}`,background:checked?M:W,
+                          display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:W}}>
+                          {checked&&"✓"}
+                        </div>
+                        <div style={{width:30,height:30,borderRadius:"50%",flexShrink:0,
+                          background:checked?M:"#F3F0EB",
+                          color:checked?W:TS,display:"flex",alignItems:"center",
+                          justifyContent:"center",fontSize:12,fontWeight:800}}>
+                          {d.name.charAt(0)}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,fontWeight:700,color:TX}}>{d.name}</div>
+                          <div style={{fontSize:10.5,color:GR}}>@{d.username}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{display:"flex",gap:8,marginTop:8}}>
+                    <button onClick={()=>{setSendingId(null);setSelectedDrivers([]);}} style={{flex:1,
+                      padding:"8px",borderRadius:8,border:`1.5px solid ${GB}`,background:W,
+                      color:GR,fontSize:11,fontWeight:700,cursor:"pointer"}}>Cancel</button>
+                    <button disabled={selectedDrivers.length===0} onClick={async()=>{
+                      const {error:delError}=await supabase.from("permit_drivers").delete().eq("permit_id",p.id);
+                      if(delError){alert("Failed to update: "+delError.message);return;}
+                      const rows=selectedDrivers.map(driverId=>({permit_id:p.id,driver_id:driverId}));
+                      const {error}=await supabase.from("permit_drivers").insert(rows);
+                      if(error){alert("Failed to send permit: "+error.message);return;}
+                      const names=selectedDrivers.map(id=>myDrivers.find(x=>x.id===id)?.name).filter(Boolean);
+                      setSentMap({...sentMap,[p.id]:{names}});setSendingId(null);setSelectedDrivers([]);
+                    }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",
+                      background:selectedDrivers.length?M:"#DDD5C8",color:W,fontSize:11,
+                      fontWeight:700,cursor:selectedDrivers.length?"pointer":"default"}}>Confirm</button>
+                  </div>
+                </>
+              )}
+            </div>
+          ):(
+            <div style={{marginBottom:10}}>
+              {!(sentMap[p.id]||(p.assignedDriverNames&&p.assignedDriverNames.length>0))?(
+                <button onClick={()=>{setSendingId(p.id);setSelectedDrivers(p.assignedDriverIds||[]);}} style={{width:"100%",padding:"10px",borderRadius:10,
                   border:"none",background:`linear-gradient(135deg,${M},${ML})`,color:W,
                   fontSize:12,fontWeight:700,cursor:"pointer"}}>
                   Send to Driver
                 </button>
-              )
-            ):(
-              <div style={{flex:1,padding:"10px",borderRadius:10,background:"#E5F5EA",
-                fontSize:12,color:"#1E8A4C",fontWeight:600,textAlign:"center"}}>
-                ✓ Sent to {sentMap[p.id].name}
-              </div>
-            )}
-          </div>
+              ):(
+                <div style={{padding:"10px",borderRadius:10,background:"#E5F5EA",
+                  fontSize:12,color:"#1E8A4C",fontWeight:600,textAlign:"center",
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+                  <span>✓ Sent to {(sentMap[p.id]?.names||p.assignedDriverNames||[]).join(", ")||"driver"}</span>
+                  <span onClick={()=>{setSendingId(p.id);setSelectedDrivers(p.assignedDriverIds||[]);}}
+                    style={{color:M,fontWeight:700,cursor:"pointer",textDecoration:"underline"}}>Manage</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </>
@@ -430,39 +443,51 @@ export function HolderPermits({permits,myDrivers,onViewPermit,onGoToDrivers,lang
 }
 
 // ── Drivers tab (search by ID) ────────────────────────────────────
-export const DRIVER_DIRECTORY=[
-  {id:"DRV-1001",name:"Sunil Fernando",nic:"891234567V"},
-  {id:"DRV-1002",name:"Nimal Silva",nic:"882345678V"},
-  {id:"DRV-1003",name:"Ruwan Bandara",nic:"903456789V"},
-  {id:"DRV-1004",name:"Chamara Jayasinghe",nic:"875678901V"},
-];
-export function HolderDrivers({myDrivers,setMyDrivers}){
+export function HolderDrivers({myDrivers,setMyDrivers,onDriverAdded,onDriverRemoved}){
   const [query,setQuery]=useState("");
   const [found,setFound]=useState(null);
   const [err,setErr]=useState("");
-  const search=()=>{
+  const [searching,setSearching]=useState(false);
+  const [viewingDriver,setViewingDriver]=useState(null);
+  const search=async()=>{
     setErr("");setFound(null);
-    const q=query.trim().toUpperCase();
+    const q=query.trim().toLowerCase().replace(/^@/,"");
     if(!q) return;
-    const m=DRIVER_DIRECTORY.find(d=>d.id.toUpperCase()===q);
-    if(!m) setErr("No driver found with this ID.");
+    setSearching(true);
+    const {data,error}=await supabase
+      .from("profiles").select("id, full_name, nic, phone, email, username")
+      .eq("role","driver").eq("username",q);
+    setSearching(false);
+    const m=(data||[])[0];
+    if(!m) setErr("No driver found with that username. Ask them to double-check it.");
     else if(myDrivers.some(d=>d.id===m.id)) setErr("Already in your list.");
-    else setFound(m);
+    else setFound({id:m.id,name:m.full_name,nic:m.nic,email:m.email,username:m.username});
+  };
+  const addDriver=async()=>{
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user||!found) return;
+    const {error}=await supabase.from("holder_drivers").insert({
+      holder_id:user.id, driver_id:found.id,
+    });
+    if(error){setErr("Failed to add driver: "+error.message);return;}
+    setMyDrivers([...myDrivers,found]);
+    setFound(null);setQuery("");
+    if(onDriverAdded) onDriverAdded();
   };
   return(
     <>
       <div style={{fontSize:18,fontWeight:800,color:TX,margin:"0 0 14px"}}>My Drivers</div>
       <div style={{background:W,borderRadius:14,padding:"16px",marginBottom:16,
         boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
-        <div style={{fontSize:13,fontWeight:700,color:TS,marginBottom:10}}>Add Driver by Driver ID</div>
+        <div style={{fontSize:13,fontWeight:700,color:TS,marginBottom:10}}>Add Driver by Username</div>
         <div style={{fontSize:12,color:GR,marginBottom:10}}>
-          Ask the driver for their Driver ID (e.g. DRV-1001) and enter it below.
+          Ask the driver for their username (set during their registration) and enter it below.
         </div>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <input value={query} onChange={e=>{setQuery(e.target.value);setFound(null);setErr("");}}
-            placeholder="e.g. DRV-1001" style={{...baseInput,flex:1}}/>
-          <button onClick={search} style={{padding:"0 16px",borderRadius:10,border:"none",
-            background:M,color:W,fontSize:13,fontWeight:700,cursor:"pointer"}}>Search</button>
+            placeholder="e.g. sunil_driver" style={{...baseInput,flex:1}}/>
+          <button onClick={search} disabled={searching} style={{padding:"0 16px",borderRadius:10,border:"none",
+            background:M,color:W,fontSize:13,fontWeight:700,cursor:"pointer"}}>{searching?"…":"Search"}</button>
         </div>
         {err&&<div style={{fontSize:12,color:"#C0392B"}}>{err}</div>}
         {found&&(
@@ -471,16 +496,16 @@ export function HolderDrivers({myDrivers,setMyDrivers}){
             <div style={{width:40,height:40,borderRadius:"50%",flexShrink:0,background:M,
               color:W,display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:15,fontWeight:800}}>
-              {found.name.charAt(0)}
+              {(found.name||"?").charAt(0)}
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:TX}}>{found.name}</div>
-              <div style={{fontSize:11,color:GR}}>ID: {found.id} · NIC: {found.nic}</div>
+              <div style={{fontSize:11,color:GR}}>@{found.username}</div>
             </div>
           </div>
         )}
         {found&&(
-          <button onClick={()=>{setMyDrivers([...myDrivers,found]);setFound(null);setQuery("");}}
+          <button onClick={addDriver}
             style={{...baseBtn,background:M,color:W,padding:"10px",marginTop:10}}>
             ✓ Add Driver
           </button>
@@ -491,21 +516,45 @@ export function HolderDrivers({myDrivers,setMyDrivers}){
           No drivers added yet.
         </div>
       ):myDrivers.map(d=>(
-        <div key={d.id} style={{background:W,borderRadius:12,padding:"12px 16px",marginBottom:10,
-          boxShadow:"0 2px 10px rgba(0,0,0,0.05)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-            <div style={{width:40,height:40,borderRadius:"50%",flexShrink:0,background:GP,
-              color:M,display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:15,fontWeight:800}}>
-              {d.name.charAt(0)}
+        <div key={d.id}>
+          <div onClick={()=>setViewingDriver(viewingDriver===d.id?null:d.id)}
+            style={{background:W,borderRadius:12,padding:"12px 16px",marginBottom:viewingDriver===d.id?0:10,
+            boxShadow:"0 2px 10px rgba(0,0,0,0.05)",display:"flex",justifyContent:"space-between",
+            alignItems:"center",gap:12,cursor:"pointer",
+            borderRadius:viewingDriver===d.id?"12px 12px 0 0":12}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+              <div style={{width:40,height:40,borderRadius:"50%",flexShrink:0,background:GP,
+                color:M,display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:15,fontWeight:800}}>
+                {d.name.charAt(0)}
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:TX}}>{d.name}</div>
+                <div style={{fontSize:11,color:GR}}>@{d.username}</div>
+              </div>
             </div>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:TX}}>{d.name}</div>
-              <div style={{fontSize:11,color:GR}}>{d.id} · NIC: {d.nic}</div>
-            </div>
+            <span style={{fontSize:16,color:GR,flexShrink:0}}>{viewingDriver===d.id?"▲":"▼"}</span>
           </div>
-          <span onClick={()=>setMyDrivers(myDrivers.filter(x=>x.id!==d.id))}
-            style={{fontSize:12,color:"#C0392B",fontWeight:700,cursor:"pointer",flexShrink:0}}>Remove</span>
+          {viewingDriver===d.id&&(
+            <div style={{background:W,borderRadius:"0 0 12px 12px",padding:"14px 16px",marginBottom:10,
+              boxShadow:"0 2px 10px rgba(0,0,0,0.05)",borderTop:`1px solid #F3F0EB`}}>
+              <div style={{fontSize:12,color:GR,marginBottom:4}}>Email: <span style={{color:TX,fontWeight:600}}>{d.email||"—"}</span></div>
+              <div style={{fontSize:12,color:GR,marginBottom:4}}>NIC: <span style={{color:TX,fontWeight:600}}>{d.nic||"—"}</span></div>
+              <div style={{fontSize:12,color:GR,marginBottom:12}}>Username: <span style={{color:TX,fontWeight:600}}>@{d.username}</span></div>
+              <button onClick={async()=>{
+                const {data:{user}}=await supabase.auth.getUser();
+                const {error}=await supabase.from("holder_drivers").delete()
+                  .eq("holder_id",user.id).eq("driver_id",d.id);
+                if(error){alert("Failed to remove driver: "+error.message);return;}
+                setMyDrivers(myDrivers.filter(x=>x.id!==d.id));
+                setViewingDriver(null);
+                if(onDriverRemoved) onDriverRemoved();
+              }} style={{width:"100%",padding:"9px",borderRadius:8,border:"1.5px solid #FBEAEA",
+                background:"#FBEAEA",color:"#C0392B",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                Remove Driver
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </>
