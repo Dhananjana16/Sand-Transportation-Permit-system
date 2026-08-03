@@ -1,6 +1,7 @@
 // Driver dashboard shell - home, my permits, trip log, profile and settings
 
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
 import { Field, StatusBadge, AppHeader, BottomNav, BackHeader,
   ScrollBody, QRCode, PhoneFrame } from "./uiComponents";
@@ -15,68 +16,181 @@ export function DriverDashboard({driverId,onLogout,initialLanguage="English"}){
   const [viewingPermit,setViewingPermit]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [permitSearch,setPermitSearch]=useState("");
+  const [tripSearch,setTripSearch]=useState("");
   const [profile,setProfile]=useState({
-    name:"Sunil Fernando",email:"sunil.fernando@gmail.com",
-    phone:"071 234 5678",language:initialLanguage,
+    name:"",email:"",phone:"",nic:"",address:"",licenceNo:"",avatarUrl:"",language:initialLanguage,
   });
+  const [avatarUploading,setAvatarUploading]=useState(false);
   const L=(key)=>t(profile.language,key);
-  const [notifications,setNotifications]=useState([
-    {icon:"🪪",title:"Permit Assigned",detail:"PMT-2026-0143 sent to you by Kamal Perera",time:"10 Jun 2026",read:true},
-    {icon:"✅",title:"Trip Completed",detail:"PMT-2026-0143 · Trip 1 logged",time:"13 Jun 2026, 11:40 AM",read:false},
-    {icon:"👮",title:"Police Checkpoint Logged",detail:"PMT-2026-0143 · Sgt. K. Perera / Badulla",time:"13 Jun 2026, 09:50 AM",read:false},
-  ]);
+  const [notifications,setNotifications]=useState([]);
   const markAllNotificationsRead=()=>setNotifications(prev=>prev.map(n=>({...n,read:true})));
 
-  const [permits,setPermits]=useState([{
-    id:"PMT-2026-0143",licenceNo:"TL/2026/04521",vehicleNo:"NB-1234",
-    mineral:"Sand",qty:"8",unit:"Cubes",
-    holderName:"Kamal Perera",holderAddress:"No. 45, Main Street, Badulla",
-    miningLicenceNo:"ML/2025/00123",district:"Badulla",
-    dsDivision:"Badulla DS Division",gnDivision:"45 - Bandarawela",
-    landName:"Galketiya Sand Store",
-    startPlace:"Galketiya Sand Store",destination:"Colombo Construction Site",
-    via1:"Bandarawela",via2:"Ella",via3:"",via4:"",
-    validFrom:"10 Jun 2026",validTo:"09 Jul 2026",
-    licenceFeeReceipt:"LF-2026-0456",royaltyReceiptNo:"RR-998877",royaltyAmount:"5000",
-    officerName:"Mr. S. Jayawardena",issuedDate:"10 Jun 2026",
-    tripsTotal:25,status:"Active",
-    tripInProgress:null,
-    trips:[
-      {date:"13 Jun 2026",qty:"8",startTime:"08:15 AM",endTime:"11:40 AM",
-        driverName:"Sunil Fernando",policeOfficer:"Sgt. K. Perera / Badulla",status:"Completed"},
-    ],
-  }]);
+  const loadProfile=async()=>{
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user) return;
+    const {data,error}=await supabase.from("profiles").select("*").eq("id",user.id).single();
+    if(!error&&data) setProfile(prev=>({
+      ...prev,
+      name:data.full_name||"", email:user.email||"",
+      phone:data.phone||"", nic:data.nic||"", address:data.address||"",
+      avatarUrl:data.avatar_url||"",
+    }));
+  };
+  useEffect(()=>{ loadProfile(); },[]);
+
+  const uploadAvatar=async(e)=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    setAvatarUploading(true);
+    const {data:{user}}=await supabase.auth.getUser();
+    const path=`profiles/${user.id}_${Date.now()}_${file.name}`;
+    const {error}=await supabase.storage.from("permit-docs").upload(path,file);
+    if(error){alert("Upload failed: "+error.message);setAvatarUploading(false);return;}
+    const {data:urlData}=supabase.storage.from("permit-docs").getPublicUrl(path);
+    await supabase.from("profiles").update({avatar_url:urlData.publicUrl}).eq("id",user.id);
+    setProfile(prev=>({...prev,avatarUrl:urlData.publicUrl}));
+    setAvatarUploading(false);
+  };
+
+  const [permits,setPermits]=useState([]);
+  const [loadingPermits,setLoadingPermits]=useState(true);
+
+  const loadPermits=async()=>{
+    setLoadingPermits(true);
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user){alert("No logged-in user found when loading Driver permits.");setLoadingPermits(false);return;}
+    const {data:links,error:linksError}=await supabase.from("permit_drivers").select("permit_id").eq("driver_id",user.id);
+    if(linksError){alert("Failed to load permit_drivers: "+linksError.message);setLoadingPermits(false);return;}
+    const permitIdList=(links||[]).map(l=>l.permit_id);
+    if(permitIdList.length===0){alert(`No permit_drivers rows found for driver id: ${user.id}`);setPermits([]);setLoadingPermits(false);return;}
+    const {data,error}=await supabase
+      .from("permits").select("*").in("id",permitIdList)
+      .order("created_at",{ascending:false});
+    if(error){alert("Failed to load permits: "+error.message);setLoadingPermits(false);return;}
+    if(!data||data.length===0){alert(`permit_drivers found ${permitIdList.length} link(s), but permits query returned 0 rows.`);setLoadingPermits(false);return;}
+    const permitIds=data.map(p=>p.id);
+    const {data:tripRows}=permitIds.length
+      ?await supabase.from("trips").select("*").in("permit_id",permitIds).order("started_at",{ascending:true})
+      :{data:[]};
+    const {data:checkpointRows}=permitIds.length
+      ?await supabase.from("checkpoints").select("*, profiles(full_name, station)").in("permit_id",permitIds)
+      :{data:[]};
+    setPermits(data.map(p=>{
+      const inProgress=(tripRows||[]).find(t=>t.permit_id===p.id&&t.status==="in_progress");
+      return{
+        id:p.id, licenceNo:p.licence_no, vehicleNo:p.vehicle_no,
+        mineral:p.mineral, qty:p.qty, unit:p.unit,
+        holderName:p.holder_name,
+        district:p.district,
+        startPlace:p.start_place, destination:p.destination,
+        via1:p.via1,via2:p.via2,via3:p.via3,via4:p.via4,
+        validFrom:p.valid_from, validTo:p.valid_to,
+        officerName:p.officer_name, issuedDate:p.issued_date,
+        status:p.status, tripsTotal:p.trips_total,
+        estimatedTripMinutes:60+([p.via1,p.via2,p.via3,p.via4].filter(Boolean).length+1)*30,
+        trips:(tripRows||[]).filter(t=>t.permit_id===p.id&&t.status==="completed").map(t=>{
+          const cp=(checkpointRows||[]).find(c=>c.trip_id===t.id);
+          return{
+            date:t.started_at?new Date(t.started_at).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"",
+            startTime:t.started_at?new Date(t.started_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"",
+            endTime:t.ended_at?new Date(t.ended_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"",
+            driverName:t.driver_name, destination:t.destination,
+            policeOfficer:cp?`${cp.profiles?.full_name||"Officer"}${cp.profiles?.station?" / "+cp.profiles.station:""}`:null,
+            status:"Completed",
+          };
+        }),
+        tripInProgress:inProgress?{
+          startTime:new Date(inProgress.started_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),
+          startTimestamp:new Date(inProgress.started_at).getTime(),
+          tripRowId:inProgress.id, destination:inProgress.destination,
+          driverName:inProgress.driver_name,
+          delayReason:inProgress.delay_reason||null,
+          proofAttached:!!inProgress.delay_proof_url,
+          proofUrl:inProgress.delay_proof_url||null,
+        }:null,
+      };
+    }));
+    setLoadingPermits(false);
+  };
+  useEffect(()=>{ loadPermits(); },[]);
 
   const updatePermit=(id,fn)=>{
     setPermits(p=>p.map(x=>x.id===id?fn(x):x));
     setSelectedPermit(p=>p&&p.id===id?fn(p):p);
   };
 
-  const startTrip=()=>{
+  const startTrip=async(destination)=>{
     const now=new Date();
     const time=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
     const date=now.toLocaleDateString([],{day:"2-digit",month:"short",year:"numeric"});
     const legs=[selectedPermit.via1,selectedPermit.via2,selectedPermit.via3,selectedPermit.via4].filter(Boolean).length+1;
+    const {data:{user}}=await supabase.auth.getUser();
+    const {data:tripRow,error}=await supabase.from("trips").insert({
+      permit_id:selectedPermit.id, driver_id:user?.id, driver_name:profile.name,
+      started_at:now.toISOString(), status:"in_progress",
+      destination:destination||selectedPermit.destination,
+    }).select().single();
+    if(error){alert("Failed to start trip: "+error.message);return;}
     updatePermit(selectedPermit.id,p=>({...p,
       estimatedTripMinutes:60+legs*30,
       tripInProgress:{startTime:time,date,startTimestamp:now.getTime(),
+        tripRowId:tripRow.id, destination:tripRow.destination,
         driverName:profile.name,delayReason:null,proofAttached:false}}));
     setNotifications(prev=>[{icon:"🚚",title:"Trip Started",
       detail:`${selectedPermit.id} · ${time}`,time:`${date}, ${time}`,read:false},...prev]);
   };
 
-  const endTrip=()=>{
+  const endTrip=async()=>{
+    if(!selectedPermit?.tripInProgress) return;
     const now=new Date();
     const endTime=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+    const ti=selectedPermit.tripInProgress;
+    if(ti?.tripRowId){
+      const {error}=await supabase.from("trips").update({
+        ended_at:now.toISOString(), status:"completed",
+      }).eq("id",ti.tripRowId);
+      if(error){alert("Failed to end trip: "+error.message);return;}
+      await supabase.from("permits").update({
+        trips_used:(selectedPermit.trips?.length||0)+1,
+      }).eq("id",selectedPermit.id);
+    }
+    const endDate=now.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
     updatePermit(selectedPermit.id,p=>{
       const ti=p.tripInProgress;
+      if(!ti) return p;
       return{...p,tripInProgress:null,fundRequest:null,trips:[...p.trips,
-        {date:ti.date,qty:p.qty,startTime:ti.startTime,endTime,
+        {date:ti.date||endDate,qty:p.qty,startTime:ti.startTime,endTime,
           driverName:ti.driverName,policeOfficer:null,status:"Completed"}]};
     });
     setNotifications(prev=>[{icon:"✅",title:"Trip Completed",
       detail:`${selectedPermit.id} · ended ${endTime}`,
-      time:now.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})+`, ${endTime}`,read:false},...prev]);
+      time:endDate+`, ${endTime}`,read:false},...prev]);
+  };
+
+  const submitDelayReason=async(permitId,reason,proofFile)=>{
+    const permit=permits.find(p=>p.id===permitId);
+    const tripRowId=permit?.tripInProgress?.tripRowId;
+    let proofUrl=null;
+    if(proofFile){
+      const path=`delay-proof/${permitId}_${Date.now()}_${proofFile.name}`;
+      const {error:uploadError}=await supabase.storage.from("permit-docs").upload(path,proofFile);
+      if(uploadError){alert("Failed to upload proof: "+uploadError.message);return;}
+      const {data:urlData}=supabase.storage.from("permit-docs").getPublicUrl(path);
+      proofUrl=urlData.publicUrl;
+    }
+    if(tripRowId){
+      const {error}=await supabase.from("trips").update({
+        delay_reason:reason, ...(proofUrl&&{delay_proof_url:proofUrl}),
+      }).eq("id",tripRowId);
+      if(error){alert("Failed to submit delay reason: "+error.message);return;}
+    }
+    updatePermit(permitId,p=>({
+      ...p,tripInProgress:{...p.tripInProgress,delayReason:reason,proofAttached:!!proofUrl,proofUrl},
+    }));
+    setNotifications(prev=>[{icon:"📝",title:"Delay Reason Submitted",
+      detail:`${permitId} · ${reason}`,
+      time:new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}),
+      read:false},...prev]);
   };
 
   const navItems=[
@@ -89,7 +203,7 @@ export function DriverDashboard({driverId,onLogout,initialLanguage="English"}){
   if(viewingPermit){
     const curr=permits.find(p=>p.id===viewingPermit.id)||viewingPermit;
     return(
-      <PhoneFrame>
+      <PhoneFrame language={profile.language}>
         <PermitViewer permit={curr} onBack={()=>setViewingPermit(null)} viewerRole="driver" showQR/>
       </PhoneFrame>
     );
@@ -97,12 +211,12 @@ export function DriverDashboard({driverId,onLogout,initialLanguage="English"}){
 
   if(selectedPermit){
     const curr=permits.find(p=>p.id===selectedPermit.id);
-    return <PhoneFrame><DriverPermitDetail permit={curr} onBack={()=>setSelectedPermit(null)}
-      onRequestTrip={startTrip} onEndTrip={endTrip}/></PhoneFrame>;
+    return <PhoneFrame language={profile.language}><DriverPermitDetail permit={curr} onBack={()=>setSelectedPermit(null)}
+      onRequestTrip={startTrip} onEndTrip={endTrip} onSubmitDelayReason={submitDelayReason}/></PhoneFrame>;
   }
 
   if(showSettings) return(
-    <PhoneFrame>
+    <PhoneFrame language={profile.language}>
       <MobileSettingsScreen profile={profile} setProfile={setProfile}
         onBack={()=>setShowSettings(false)} onLogout={onLogout}/>
     </PhoneFrame>
@@ -116,7 +230,7 @@ export function DriverDashboard({driverId,onLogout,initialLanguage="English"}){
   };
 
   return(
-    <PhoneFrame>
+    <PhoneFrame language={profile.language}>
       <AppHeader title={titles[tab][0]} subtitle={titles[tab][1]} onLogout={onLogout} role="driver"/>
       <div style={{flex:1,padding:"18px 16px 90px",overflowY:"auto",minHeight:0}}>
         {tab==="home"&&(
@@ -261,7 +375,17 @@ export function DriverDashboard({driverId,onLogout,initialLanguage="English"}){
         {tab==="trips"&&(
           <>
             <div style={{fontSize:18,fontWeight:800,color:TX,margin:"0 0 14px"}}>Trip Log</div>
-            {permits.flatMap(p=>p.trips.map((t,i)=>({...t,permitId:p.id,tripNo:i+1}))).map((t,i)=>(
+            <div style={{position:"relative",marginBottom:14}}>
+              <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:14}}>🔍</span>
+              <input value={tripSearch} onChange={e=>setTripSearch(e.target.value)}
+                placeholder="Search by permit ID or destination..."
+                style={{...baseInput,paddingLeft:38}}/>
+            </div>
+            {permits.flatMap(p=>p.trips.map((t,i)=>({...t,permitId:p.id,tripNo:i+1,destination:p.destination})))
+              .filter(t=>!tripSearch.trim()||
+                t.permitId.toLowerCase().includes(tripSearch.toLowerCase())||
+                (t.destination||"").toLowerCase().includes(tripSearch.toLowerCase()))
+              .map((t,i)=>(
               <div key={i} style={{background:W,borderRadius:14,padding:"12px 16px",marginBottom:10,
                 boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
@@ -280,19 +404,29 @@ export function DriverDashboard({driverId,onLogout,initialLanguage="English"}){
         {tab==="profile"&&(
           <>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:24}}>
-              <div style={{width:72,height:72,borderRadius:"50%",
-                background:`linear-gradient(135deg,${M},${ML})`,display:"flex",
-                alignItems:"center",justifyContent:"center",color:W,fontSize:28,fontWeight:800,marginBottom:10}}>
-                {profile.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
-              </div>
+              <label style={{position:"relative",cursor:"pointer",marginBottom:10}}>
+                <div style={{width:72,height:72,borderRadius:"50%",overflow:"hidden",
+                  background:`linear-gradient(135deg,${M},${ML})`,display:"flex",
+                  alignItems:"center",justifyContent:"center",color:W,fontSize:28,fontWeight:800}}>
+                  {profile.avatarUrl?
+                    <img src={profile.avatarUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:
+                    profile.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
+                </div>
+                <div style={{position:"absolute",bottom:0,right:0,width:22,height:22,borderRadius:"50%",
+                  background:M,border:`2px solid ${W}`,display:"flex",alignItems:"center",
+                  justifyContent:"center",fontSize:11}}>📷</div>
+                <input type="file" accept="image/*" style={{display:"none"}} onChange={uploadAvatar}/>
+              </label>
+              {avatarUploading&&<div style={{fontSize:11,color:GR,marginBottom:4}}>Uploading…</div>}
               <div style={{fontSize:17,fontWeight:800,color:TX}}>{profile.name}</div>
               <div style={{fontSize:12,color:GR}}>Driver</div>
             </div>
             <div style={{background:W,borderRadius:14,padding:"4px 16px",
               boxShadow:"0 2px 10px rgba(0,0,0,0.05)",marginBottom:20}}>
-              {[["Full Name",profile.name],["Driver ID",driverId||"DRV-1001"],
-                ["NIC","891234567V"],["Email",profile.email],["Phone",profile.phone],
-                ["Driving Licence","B1234567"]
+              {[["Full Name",profile.name],["Driver ID",profile.email||"—"],
+                ["NIC",profile.nic||"—"],["Email",profile.email],["Phone",profile.phone],
+                ["Address",profile.address||"—"],
+                ["Driving Licence","Not recorded yet"]
               ].map(([l,v],i,a)=>(
                 <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"13px 0",
                   borderBottom:i<a.length-1?"1px solid #F3F0EB":"none"}}>
