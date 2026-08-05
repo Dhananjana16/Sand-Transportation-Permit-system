@@ -1,10 +1,12 @@
 // Police portal entry - splash screen, role entry gate, sidebar and mobile nav
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabasePolice as supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn } from "./theme";
 import { SLCrest, PoliceLogo, IconField } from "./uiComponents";
 import { useIsDesktop } from "./tripUtils";
 import { PoliceLogin } from "./PoliceDashboardLogin";
+import { PoliceDashboard } from "./PoliceDashboard";
 
 export function PoliceSplash({onContinue}){
   const isDesktop=useIsDesktop();
@@ -42,10 +44,86 @@ export function PoliceSplash({onContinue}){
   );
 }
 export function PoliceEntry(){
-  const [step,setStep]=useState("splash");
+  const [step,setStep]=useState("checking");
   const [loginKey,setLoginKey]=useState(0);
+  const [sessionOfficer,setSessionOfficer]=useState(null);
+  const LOGIN_TIME_KEY="sandpass_police_login_at";
+  const OFFICER_CACHE_KEY="sandpass_police_officer_cache";
+  const SEVEN_DAYS_MS=7*24*60*60*1000;
+
+  const checkSession=async()=>{
+    const {data:{session}}=await supabase.auth.getSession();
+    if(session){
+      // Enforce a 7-day login window — if it's been longer, force a fresh sign-in
+      const loginAt=localStorage.getItem(LOGIN_TIME_KEY);
+      if(!loginAt||(Date.now()-parseInt(loginAt))>SEVEN_DAYS_MS){
+        await supabase.auth.signOut();
+        localStorage.removeItem(LOGIN_TIME_KEY);
+        localStorage.removeItem(OFFICER_CACHE_KEY);
+        setStep("splash");
+        return;
+      }
+      // Use the cached officer details from login time instead of re-querying
+      // the database on every refresh — avoids a timing race right after
+      // reload where the session isn't fully "warmed up" yet for RLS checks.
+      const cached=localStorage.getItem(OFFICER_CACHE_KEY);
+      if(cached){
+        setSessionOfficer(JSON.parse(cached));
+        setStep("dashboard");
+        return;
+      }
+      // No cache yet (shouldn't normally happen) — fall back to a real fetch once
+      const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
+      if(profile&&profile.role==="police"){
+        const officerData={
+          name:profile.full_name, email:session.user.email,
+          phone:profile.phone, station:profile.station, badgeId:profile.badge_id,
+        };
+        localStorage.setItem(OFFICER_CACHE_KEY,JSON.stringify(officerData));
+        setSessionOfficer(officerData);
+        setStep("dashboard");
+        return;
+      }
+    }
+    setStep("splash");
+  };
+  useEffect(()=>{ checkSession(); },[]);
+
+  const handleLoginSuccess=async()=>{
+    localStorage.setItem(LOGIN_TIME_KEY,Date.now().toString());
+    const {data:{session}}=await supabase.auth.getSession();
+    if(session){
+      const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
+      if(profile){
+        const officerData={
+          name:profile.full_name, email:session.user.email,
+          phone:profile.phone, station:profile.station, badgeId:profile.badge_id,
+        };
+        localStorage.setItem(OFFICER_CACHE_KEY,JSON.stringify(officerData));
+        setSessionOfficer(officerData);
+      }
+    }
+    setStep("dashboard");
+  };
+
+  const handleLogout=async()=>{
+    await supabase.auth.signOut();
+    localStorage.removeItem(LOGIN_TIME_KEY);
+    localStorage.removeItem(OFFICER_CACHE_KEY);
+    setSessionOfficer(null);
+    setLoginKey(k=>k+1);
+    setStep("splash");
+  };
+
+  if(step==="checking") return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",
+      background:NV,color:"#fff",fontFamily:"'Segoe UI',system-ui,sans-serif"}}>
+      Loading…
+    </div>
+  );
   if(step==="splash") return <PoliceSplash onContinue={()=>setStep("login")}/>;
-  return <PoliceLogin key={loginKey} onLogout={()=>{setStep("login");setLoginKey(k=>k+1);}}/>;
+  if(step==="dashboard"&&sessionOfficer) return <PoliceDashboard officer={sessionOfficer} onLogout={handleLogout}/>;
+  return <PoliceLogin key={loginKey} onLogout={handleLogout} onSuccess={handleLoginSuccess}/>;
 }
 
 export function PoliceSidebar({activeTab,setActiveTab,onLogout}){
@@ -83,7 +161,7 @@ export function PoliceSidebar({activeTab,setActiveTab,onLogout}){
         <div onClick={onLogout} style={{display:"flex",alignItems:"center",gap:12,
           padding:"12px 16px",borderRadius:12,cursor:"pointer",color:"#C0392B",
           fontWeight:600,fontSize:14}}>
-          <span style={{fontSize:17}}>⎋</span> Sign Out
+          <span style={{fontSize:17}}>🚪</span> Sign Out
         </div>
       </div>
     </div>
