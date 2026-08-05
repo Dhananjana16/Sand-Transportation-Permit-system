@@ -1,6 +1,7 @@
 // Settings screens, document print styles, FAQ sections and activity feed
 
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
 import { Field, BackHeader, ScrollBody, webInput, webBtn } from "./uiComponents";
 
@@ -75,6 +76,27 @@ export function MobileSettingsScreen({profile,setProfile,onBack,onLogout,accent=
           </div>}
         </FormSection>
 
+        <FormSection title="Language">
+          <div style={{display:"flex",gap:8}}>
+            {[["English","English"],["Sinhala","සිංහල"]].map(([code,label])=>(
+              <button key={code} onClick={()=>{
+                setProfile(p=>({...p,language:code}));
+                try{
+                  const saved=localStorage.getItem("sandpass_returning_user");
+                  const parsed=saved?JSON.parse(saved):{};
+                  localStorage.setItem("sandpass_returning_user",JSON.stringify({...parsed,language:code}));
+                }catch(e){}
+              }} style={{flex:1,padding:"10px",borderRadius:10,
+                border:`1.5px solid ${profile.language===code?accent:GB}`,
+                background:profile.language===code?accent:W,
+                color:profile.language===code?W:TS,
+                fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </FormSection>
+
         <FormSection title={L("account")}>
           <button onClick={onLogout} style={{...baseBtn,background:W,color:accent,
             border:`1.5px solid ${GB}`,marginBottom:10}}>
@@ -108,11 +130,36 @@ export function MobileSettingsScreen({profile,setProfile,onBack,onLogout,accent=
 // ══════════════════════════════════════════════════════════════════
 
 // ── Application Form (based on real Sinhala form) ────────────────
-export function WebSettingsScreen({profile,setProfile,onLogout,accent="#6B1A2A",autoLogoutNote=false}){
+export function WebSettingsScreen({profile,setProfile,onLogout,accent="#6B1A2A",autoLogoutNote=false,supabaseClient=supabase}){
   const [draft,setDraft]=useState({name:profile.name,email:profile.email,phone:profile.phone});
   const [saved,setSaved]=useState(false);
   const [confirmDelete,setConfirmDelete]=useState(false);
+  const [avatarUploading,setAvatarUploading]=useState(false);
   const L=(key)=>t(profile.language,key);
+
+  const saveChanges=async()=>{
+    const {data:{user}}=await supabaseClient.auth.getUser();
+    if(!user) return;
+    const {error}=await supabaseClient.from("profiles").update({
+      full_name:draft.name, phone:draft.phone,
+    }).eq("id",user.id);
+    if(error){alert("Failed to save: "+error.message);return;}
+    setProfile(p=>({...p,...draft}));setSaved(true);setTimeout(()=>setSaved(false),2000);
+  };
+
+  const uploadAvatar=async(e)=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    setAvatarUploading(true);
+    const {data:{user}}=await supabaseClient.auth.getUser();
+    const path=`profiles/${user.id}_${Date.now()}_${file.name}`;
+    const {error}=await supabaseClient.storage.from("permit-docs").upload(path,file);
+    if(error){alert("Upload failed: "+error.message);setAvatarUploading(false);return;}
+    const {data:urlData}=supabaseClient.storage.from("permit-docs").getPublicUrl(path);
+    await supabaseClient.from("profiles").update({avatar_url:urlData.publicUrl}).eq("id",user.id);
+    setProfile(p=>({...p,avatarUrl:urlData.publicUrl}));
+    setAvatarUploading(false);
+  };
 
   return(
     <div>
@@ -121,17 +168,35 @@ export function WebSettingsScreen({profile,setProfile,onLogout,accent="#6B1A2A",
 
       <div style={{background:"#fff",borderRadius:14,padding:"20px",
         boxShadow:"0 2px 10px rgba(0,0,0,0.05)",marginBottom:16,maxWidth:480}}>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
+          <label style={{position:"relative",cursor:"pointer"}}>
+            <div style={{width:64,height:64,borderRadius:"50%",overflow:"hidden",
+              background:`linear-gradient(135deg,${accent},#8A2F3F)`,display:"flex",
+              alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24,fontWeight:800}}>
+              {profile.avatarUrl?
+                <img src={profile.avatarUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:
+                (profile.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
+            </div>
+            <div style={{position:"absolute",bottom:0,right:0,width:20,height:20,borderRadius:"50%",
+              background:accent,border:"2px solid #fff",display:"flex",alignItems:"center",
+              justifyContent:"center",fontSize:10}}>📷</div>
+            <input type="file" accept="image/*" style={{display:"none"}} onChange={uploadAvatar}/>
+          </label>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:"#1A0A0F"}}>{profile.name}</div>
+            {avatarUploading&&<div style={{fontSize:11,color:"#6B7280"}}>Uploading…</div>}
+          </div>
+        </div>
         <div style={{fontSize:13,fontWeight:800,color:accent,marginBottom:14,
           textTransform:"uppercase",letterSpacing:"0.05em"}}>{L("editProfile")}</div>
         {[[L("fullName"),"name"],[L("emailAddress"),"email"],[L("phoneNumber"),"phone"]].map(([label,key])=>(
           <div key={key} style={{marginBottom:14}}>
             <label style={{display:"block",fontSize:12,fontWeight:600,color:"#5A3A42",marginBottom:6}}>{label}</label>
-            <input value={draft[key]} onChange={e=>setDraft({...draft,[key]:e.target.value})} style={webInput}/>
+            <input value={draft[key]} onChange={e=>setDraft({...draft,[key]:e.target.value})}
+              readOnly={key==="email"} style={{...webInput,background:key==="email"?"#F8F5F0":"#fff"}}/>
           </div>
         ))}
-        <button onClick={()=>{
-          setProfile(p=>({...p,...draft}));setSaved(true);setTimeout(()=>setSaved(false),2000);
-        }} style={webBtn(accent,"#fff")}>
+        <button onClick={saveChanges} style={webBtn(accent,"#fff")}>
           {L("saveChanges")}
         </button>
         {saved&&<span style={{marginLeft:12,color:"#1E8A4C",fontSize:13,fontWeight:600}}>✓ Profile updated</span>}
