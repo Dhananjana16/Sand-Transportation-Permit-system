@@ -6,6 +6,7 @@ import slEmblem from "./image/sl-emblem.png";
 import gsmbLogo from "./image/gsmb-logo.png";
 import policeLogo from "./image/police-logo.png";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
+import { useAutoTranslate } from "./useAutoTranslate";
 
 export const SLCrest = ({size=48}) => (
   <div style={{width:size,height:size,borderRadius:"50%",overflow:"hidden",background:W,
@@ -112,9 +113,11 @@ export function FormSection({title,children}){
   );
 }
 
-export function PhoneFrame({children}){
+export function PhoneFrame({children,language}){
+  const containerRef = useRef(null);
+  useAutoTranslate(language, containerRef);
   return(
-    <div className="phone-frame" style={{width:390,height:844,background:OW,display:"flex",flexDirection:"column",
+    <div ref={containerRef} className="phone-frame" style={{width:390,height:844,background:OW,display:"flex",flexDirection:"column",
       fontFamily:"'Segoe UI',system-ui,sans-serif",borderRadius:40,
       boxShadow:"0 32px 80px #00000050",overflow:"hidden",position:"relative"}}>
       {children}
@@ -144,9 +147,10 @@ export function AppHeader({title,subtitle,onLogout,role="holder"}){
               <div style={{color:GL,fontSize:11,opacity:0.85}}>{subtitle}</div>
             </div>
           </div>
-          <div onClick={onLogout} style={{width:36,height:36,borderRadius:10,
-            background:"rgba(255,255,255,0.12)",display:"flex",alignItems:"center",
-            justifyContent:"center",fontSize:14,cursor:"pointer",color:W}}>⎋</div>
+          <div onClick={onLogout} style={{padding:"8px 14px",borderRadius:10,
+            background:"rgba(192,57,43,0.18)",border:"1px solid rgba(192,57,43,0.35)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:12,fontWeight:700,cursor:"pointer",color:"#FF8A8A",whiteSpace:"nowrap"}}>Sign Out</div>
         </div>
       </div>
     </>
@@ -254,9 +258,9 @@ export function IconField({icon,label,type="text",placeholder,value,onChange}){
     <div style={{marginBottom:16}}>
       <label style={{display:"block",fontSize:13,fontWeight:600,color:TS,marginBottom:6}}>{label}</label>
       <div style={{position:"relative"}}>
-        <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:15}}>{icon}</span>
+        {icon&&<span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:15}}>{icon}</span>}
         <input type={type} placeholder={placeholder} value={value} onChange={onChange}
-          style={{width:"100%",padding:"13px 14px 13px 42px",border:"1.5px solid #E5EAF0",
+          style={{width:"100%",padding:icon?"13px 14px 13px 42px":"13px 14px",border:"1.5px solid #E5EAF0",
             borderRadius:10,fontSize:14,color:TX,background:"#FAFBFC",outline:"none",
             boxSizing:"border-box",fontFamily:"inherit",transition:"border-color 0.2s"}}
           onFocus={e=>e.target.style.borderColor=NV}
