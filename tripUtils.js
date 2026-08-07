@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM, baseInput, baseBtn, t } from "./theme";
+import { LiveMap } from "./LiveMap";
 
 export function useIsDesktop(breakpoint=960){
   const [isDesktop,setIsDesktop]=useState(()=>
@@ -22,12 +23,19 @@ export function useTicker(intervalMs=15000){
   },[intervalMs]);
 }
 
+// Since we don't yet have real distance/route-based time estimation, the
+// estimate itself is a rough placeholder — so we only flag something as
+// genuinely "delayed" after a generous grace period past that estimate,
+// to avoid falsely warning about normal traffic/loading delays.
+const DELAY_GRACE_MINUTES=120;
+
 export function getTripStatus(tripInProgress,estimatedMinutes){
   if(!tripInProgress||!tripInProgress.startTimestamp||!estimatedMinutes) return null;
   const elapsedMin=Math.max(0,Math.round((Date.now()-tripInProgress.startTimestamp)/60000));
   const remaining=estimatedMinutes-elapsedMin;
   const progress=Math.min(elapsedMin/estimatedMinutes,1);
-  return{elapsedMin,remaining,progress,delayed:elapsedMin>estimatedMinutes};
+  const delayed=elapsedMin>(estimatedMinutes+DELAY_GRACE_MINUTES);
+  return{elapsedMin,remaining,progress,delayed};
 }
 
 export function fmtMinutes(min){
@@ -50,20 +58,40 @@ export function TripStatusCard({permit}){
         🛰 Live Trip — {permit.id}
       </div>
 
-      <div style={{background:"#EFF1EA",border:`1.5px dashed ${GB}`,borderRadius:14,
-        padding:"30px 16px",textAlign:"center"}}>
-        <div style={{fontSize:24,marginBottom:6}}>🛰</div>
-        <div style={{fontSize:12,fontWeight:700,color:TS,marginBottom:2}}>Live map view</div>
-        <div style={{fontSize:11,color:"#9CA3AF"}}>
-          Will show this vehicle's live location once GPS tracking is connected
-        </div>
-      </div>
+      <LiveMap tripRowId={permit.tripInProgress.tripRowId}
+        driverName={permit.tripInProgress.driverName} vehicleNo={permit.vehicleNo}
+        startPlace={permit.startPlace} destination={permit.tripInProgress.destination||permit.destination}/>
 
       <div style={{display:"flex",justifyContent:"space-between",marginTop:12,fontSize:12,flexWrap:"wrap",gap:6}}>
         <span style={{color:GR}}>Driver: {permit.tripInProgress.driverName||"—"}</span>
         <span style={{color:GR}}>Elapsed: <b style={{color:TX}}>{fmtMinutes(status.elapsedMin)}</b></span>
-        <span style={{color:GR}}>ETA in {fmtMinutes(Math.max(0,status.remaining))}</span>
+        <span style={{color:status.remaining<0?"#C0392B":GR}}>
+          {status.remaining<0?`⚠️ ${fmtMinutes(-status.remaining)} over ETA`:`ETA in ${fmtMinutes(status.remaining)}`}
+        </span>
       </div>
+
+      {status.delayed&&(
+        <div style={{background:"#FBEAEA",borderRadius:10,padding:"12px 14px",marginTop:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#C0392B",marginBottom:6}}>
+            ⚠️ This trip is running late
+          </div>
+          {permit.tripInProgress.delayReason?(
+            <div style={{fontSize:12,color:TS}}>
+              Reason from driver: "{permit.tripInProgress.delayReason}"
+              {permit.tripInProgress.proofUrl&&(
+                <div style={{marginTop:8}}>
+                  <a href={permit.tripInProgress.proofUrl} target="_blank" rel="noopener noreferrer"
+                    style={{color:"#1E8A4C",fontWeight:700,fontSize:12,textDecoration:"underline"}}>
+                    📎 View attached proof
+                  </a>
+                </div>
+              )}
+            </div>
+          ):(
+            <div style={{fontSize:11,color:TS}}>Waiting for the driver to submit a reason.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

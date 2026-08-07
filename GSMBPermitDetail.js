@@ -1,10 +1,37 @@
+import { useState, useEffect } from "react";
+import { supabase } from "./supabaseClient";
 import { M, MD, ML, G, GL, GP, W, OW, GR, GB, TX, TS, NV, NM } from "./theme";
 import { GSMBLogo, webBtn, webInput } from "./uiComponents";
+import { LiveMap } from "./LiveMap";
 import { PrintStyles } from "./settingsAndDocs";
 
 // ─── Full Form 7 permit detail — used by both GSMB and Police scans ─
 
-export function GSMBPermitDetail({permit,onBack,allowSave=true}){
+export function GSMBPermitDetail({permit,onBack,allowSave=true,supabaseClient=supabase,showLiveMap=false}){
+  const [checkpointNotes,setCheckpointNotes]=useState([]);
+
+  useEffect(()=>{
+    let cancelled=false;
+    const loadCheckpoints=async()=>{
+      const {data,error}=await supabaseClient
+        .from("checkpoints")
+        .select("*, profiles(full_name, station)")
+        .eq("permit_id",permit.id)
+        .order("checked_at",{ascending:false});
+      if(!error&&data&&!cancelled){
+        setCheckpointNotes(data.map(c=>({
+          officer:c.profiles?.full_name||"Unknown Officer",
+          station:c.profiles?.station||"—",
+          date:new Date(c.checked_at).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}),
+          time:new Date(c.checked_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),
+          locationText:c.location_name||"No location recorded",
+        })));
+      }
+    };
+    if(permit?.id) loadCheckpoints();
+    return ()=>{cancelled=true;};
+  },[permit?.id]);
+
   const Row=({label,value})=>(
     <div style={{display:"flex",padding:"8px 0",borderBottom:"1px solid #F8F5F0"}}>
       <span style={{width:200,color:"#6B7280",fontSize:13,flexShrink:0}}>{label}</span>
@@ -24,6 +51,14 @@ export function GSMBPermitDetail({permit,onBack,allowSave=true}){
           fontSize:13,color:NV,fontWeight:600}}>
           🚚 Ride in progress · Started {permit.tripInProgress.startTime}
           {permit.tripInProgress.driverName&&` · Driver: ${permit.tripInProgress.driverName}`}
+        </div>
+      )}
+      {showLiveMap&&permit.tripInProgress&&(
+        <div className="no-print" style={{marginBottom:16}}>
+          <LiveMap tripRowId={permit.tripInProgress.tripRowId}
+            driverName={permit.tripInProgress.driverName} vehicleNo={permit.vehicleNo}
+            startPlace={permit.startPlace} destination={permit.tripInProgress.destination||permit.destination}
+            supabaseClient={supabaseClient}/>
         </div>
       )}
       {allowSave&&<PrintStyles/>}
@@ -114,15 +149,15 @@ export function GSMBPermitDetail({permit,onBack,allowSave=true}){
               </table>
             </div>
           </div>
-          {permit.checkpointNotes&&permit.checkpointNotes.length>0&&(
+          {checkpointNotes.length>0&&(
             <div style={{background:"#fff",borderRadius:14,padding:"20px",boxShadow:"0 2px 10px rgba(0,0,0,0.05)"}}>
               <div style={{fontSize:12,fontWeight:800,color:"#6B1A2A",marginBottom:12,textTransform:"uppercase",
                 letterSpacing:"0.06em",borderBottom:"2px solid #FDF3D7",paddingBottom:8}}>
                 📍 Police Checkpoint Notes
               </div>
-              {permit.checkpointNotes.map((c,i)=>(
+              {checkpointNotes.map((c,i)=>(
                 <div key={i} style={{padding:"10px 0",
-                  borderBottom:i<permit.checkpointNotes.length-1?"1px solid #F8F5F0":"none"}}>
+                  borderBottom:i<checkpointNotes.length-1?"1px solid #F8F5F0":"none"}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#1A0A0F"}}>{c.officer} · {c.station}</div>
                   <div style={{fontSize:12,color:"#6B7280"}}>{c.date}, {c.time}</div>
                   <div style={{fontSize:12,color:"#1E8A4C",marginTop:2}}>📍 {c.locationText}</div>
