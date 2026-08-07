@@ -8,7 +8,7 @@ import { webBtn, webInput } from "./uiComponents";
 import { useIsDesktop } from "./tripUtils";
 import { GSMBPermitDetail } from "./GSMBPermitDetail";
 
-export function GSMBIssuedPermits({permits,initialViewId=null}){
+export function GSMBIssuedPermits({permits,initialViewId=null,supabaseClient}){
   const [search,setSearch]=useState("");
   const [viewPermitId,setViewPermitId]=useState(initialViewId);
   const [dateFrom,setDateFrom]=useState("");
@@ -25,7 +25,7 @@ export function GSMBIssuedPermits({permits,initialViewId=null}){
   });
   const viewPermit=viewPermitId?permits.find(p=>p.id===viewPermitId):null;
 
-  if(viewPermit) return <GSMBPermitDetail permit={viewPermit} onBack={()=>setViewPermitId(null)}/>;
+  if(viewPermit) return <GSMBPermitDetail permit={viewPermit} onBack={()=>setViewPermitId(null)} supabaseClient={supabaseClient}/>;
 
   return(
     <div>
